@@ -85,6 +85,10 @@ namespace seal
             pos *= gen;
             pos &= (m - 1);
         }
+        for (size_t i = 0; i < slots_; i++)
+        {
+            matrix_reps_index_map_[i] = i;
+        }
     }
 
     void BatchEncoder::reverse_bits(uint64_t *input)
@@ -137,11 +141,14 @@ namespace seal
         for (size_t i = 0; i < values_matrix_size; i++)
         {
             *(destination.data() + matrix_reps_index_map_[i]) = values_matrix[i];
+            //cout << matrix_reps_index_map_[i] << ", ";
         }
         for (size_t i = values_matrix_size; i < slots_; i++)
         {
             *(destination.data() + matrix_reps_index_map_[i]) = 0;
+            //cout << matrix_reps_index_map_[i] << ", ";
         }
+        //cout << "\n";
 
         // Transform destination using inverse of negacyclic NTT
         // Note: We already performed bit-reversal when reading in the matrix
@@ -181,11 +188,15 @@ namespace seal
             *(destination.data() + matrix_reps_index_map_[i]) =
                 (values_matrix[i] < 0) ? (modulus + static_cast<uint64_t>(values_matrix[i]))
                                        : static_cast<uint64_t>(values_matrix[i]);
+            //cout << *(destination.data() + matrix_reps_index_map_[i]) << ", ";
+            //cout << matrix_reps_index_map_[i] << ", ";
         }
         for (size_t i = values_matrix_size; i < slots_; i++)
         {
             *(destination.data() + matrix_reps_index_map_[i]) = 0;
+            //cout << matrix_reps_index_map_[i] << ", ";
         }
+        //cout << endl;
 
         // Transform destination using inverse of negacyclic NTT
         // Note: We already performed bit-reversal when reading in the matrix
