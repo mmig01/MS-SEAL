@@ -145,7 +145,7 @@ namespace seal
 
         // Transform destination using inverse of negacyclic NTT
         // Note: We already performed bit-reversal when reading in the matrix
-        inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        //inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
     }
 
     void BatchEncoder::encode(const vector<int64_t> &values_matrix, Plaintext &destination) const
@@ -189,7 +189,7 @@ namespace seal
 
         // Transform destination using inverse of negacyclic NTT
         // Note: We already performed bit-reversal when reading in the matrix
-        inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        //inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
     }
 #ifdef SEAL_USE_MSGSL
     void BatchEncoder::encode(gsl::span<const uint64_t> values_matrix, Plaintext &destination) const
@@ -305,7 +305,7 @@ namespace seal
         set_zero_uint(slots_ - plain_coeff_count, temp_dest.get() + plain_coeff_count);
 
         // Transform destination using negacyclic NTT.
-        ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+        //ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
 
         // Read top row, then bottom row
         for (size_t i = 0; i < slots_; i++)
@@ -345,7 +345,7 @@ namespace seal
         set_zero_uint(slots_ - plain_coeff_count, temp_dest.get() + plain_coeff_count);
 
         // Transform destination using negacyclic NTT.
-        ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+        //ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
 
         // Read top row, then bottom row
         uint64_t plain_modulus_div_two = modulus >> 1;
