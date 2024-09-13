@@ -14,7 +14,7 @@ using namespace seal::util;
 
 namespace seal
 {
-    BatchEncoder::BatchEncoder(const SEALContext &context) : context_(context)
+    BatchEncoder::BatchEncoder(const SEALContext &context, bool use_ntt = true) : context_(context), use_ntt_(use_ntt)
     {
         // Verify parameters
         if (!context_.parameters_set())
@@ -63,9 +63,37 @@ namespace seal
 
     void BatchEncoder::populate_matrix_reps_index_map()
     {
-        for (size_t i = 0; i < slots_; i++)
+        int logn = get_power_of_two(slots_);
+        matrix_reps_index_map_ = allocate<size_t>(slots_, pool_);
+
+        if (use_ntt_)
         {
-            matrix_reps_index_map_[i] = i;
+            // Copy from the matrix to the value vectors
+            size_t row_size = slots_ >> 1;
+            size_t m = slots_ << 1;
+            uint64_t gen = 3;
+            uint64_t pos = 1;
+            for (size_t i = 0; i < row_size; i++)
+            {
+                // Position in normal bit order
+                uint64_t index1 = (pos - 1) >> 1;
+                uint64_t index2 = (m - pos - 1) >> 1;
+
+                // Set the bit-reversed locations
+                matrix_reps_index_map_[i] = safe_cast<size_t>(util::reverse_bits(index1, logn));
+                matrix_reps_index_map_[row_size | i] = safe_cast<size_t>(util::reverse_bits(index2, logn));
+
+                // Next primitive root
+                pos *= gen;
+                pos &= (m - 1);
+            }
+        }
+        else
+        {
+            for (size_t i = 0; i < slots_; i++)
+            {
+                matrix_reps_index_map_[i] = i;
+            }
         }
     }
 
@@ -119,18 +147,18 @@ namespace seal
         for (size_t i = 0; i < values_matrix_size; i++)
         {
             *(destination.data() + matrix_reps_index_map_[i]) = values_matrix[i];
-            //cout << matrix_reps_index_map_[i] << ", ";
         }
         for (size_t i = values_matrix_size; i < slots_; i++)
         {
             *(destination.data() + matrix_reps_index_map_[i]) = 0;
-            //cout << matrix_reps_index_map_[i] << ", ";
         }
-        //cout << "\n";
 
         // Transform destination using inverse of negacyclic NTT
         // Note: We already performed bit-reversal when reading in the matrix
-        //inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        if (use_ntt_)
+        {
+            inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        }
     }
 
     void BatchEncoder::encode(const vector<int64_t> &values_matrix, Plaintext &destination) const
@@ -166,19 +194,18 @@ namespace seal
             *(destination.data() + matrix_reps_index_map_[i]) =
                 (values_matrix[i] < 0) ? (modulus + static_cast<uint64_t>(values_matrix[i]))
                                        : static_cast<uint64_t>(values_matrix[i]);
-            //cout << *(destination.data() + matrix_reps_index_map_[i]) << ", ";
-            //cout << matrix_reps_index_map_[i] << ", ";
         }
         for (size_t i = values_matrix_size; i < slots_; i++)
         {
             *(destination.data() + matrix_reps_index_map_[i]) = 0;
-            //cout << matrix_reps_index_map_[i] << ", ";
         }
-        //cout << endl;
 
         // Transform destination using inverse of negacyclic NTT
         // Note: We already performed bit-reversal when reading in the matrix
-        //inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        if (use_ntt_)
+        {
+            inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        }
     }
 #ifdef SEAL_USE_MSGSL
     void BatchEncoder::encode(gsl::span<const uint64_t> values_matrix, Plaintext &destination) const
@@ -294,7 +321,10 @@ namespace seal
         set_zero_uint(slots_ - plain_coeff_count, temp_dest.get() + plain_coeff_count);
 
         // Transform destination using negacyclic NTT.
-        //ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+        if (use_ntt_)
+        {
+            ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+        }
 
         // Read top row, then bottom row
         for (size_t i = 0; i < slots_; i++)
@@ -334,7 +364,10 @@ namespace seal
         set_zero_uint(slots_ - plain_coeff_count, temp_dest.get() + plain_coeff_count);
 
         // Transform destination using negacyclic NTT.
-        //ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+        if (use_ntt_)
+        {
+            ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+        }
 
         // Read top row, then bottom row
         uint64_t plain_modulus_div_two = modulus >> 1;

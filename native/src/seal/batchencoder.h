@@ -59,7 +59,7 @@ namespace seal
         @throws std::invalid_argument if the encryption parameters are not valid for batching
         @throws std::invalid_argument if scheme is not scheme_type::bfv
         */
-        BatchEncoder(const SEALContext &context);
+        BatchEncoder(const SEALContext &context, bool use_ntt);
 
         /**
         Creates a plaintext from a given matrix. This function "batches" a given matrix
@@ -237,6 +237,8 @@ namespace seal
         MemoryPoolHandle pool_ = MemoryManager::GetPool();
 
         SEALContext context_;
+
+        bool use_ntt_;
 
         std::size_t slots_;
 
