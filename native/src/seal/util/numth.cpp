@@ -5,6 +5,7 @@
 #include "seal/util/uintarithsmallmod.h"
 #include "seal/util/uintcore.h"
 #include <random>
+#include <unordered_set>
 
 using namespace std;
 
@@ -381,6 +382,73 @@ namespace seal
             } while (!is_primitive_root(destination, degree, modulus) && (attempt_counter < attempt_counter_max));
 
             return is_primitive_root(destination, degree, modulus);
+        }
+
+        bool try_primitive_roots(uint64_t degree, const Modulus &modulus, int k, vector<uint64_t> &destination)
+        {
+#ifdef SEAL_DEBUG
+            if (modulus.bit_count() < 2)
+            {
+                throw invalid_argument("modulus");
+            }
+            if (get_power_of_two(degree) < 1)
+            {
+                throw invalid_argument("degree must be a power of two and at least two");
+            }
+            if (k < 1)
+            {
+                throw invalid_argument("k must be at least 1");
+            }
+#endif
+            // modulus-1을 degree로 나누어 몫 그룹의 크기를 얻습니다.
+            uint64_t size_entire_group = modulus.value() - 1;
+
+            // 몫 그룹의 크기를 계산합니다.
+            uint64_t size_quotient_group = size_entire_group / degree;
+
+            // modulus-1이 degree로 나누어 떨어져야 합니다.
+            if (size_entire_group - size_quotient_group * degree != 0)
+            {
+                return false;
+            }
+
+            // 서로 다른 원시근을 저장하기 위한 집합
+            std::unordered_set<uint64_t> unique_roots;
+
+            // 난수 생성을 위한 장치
+            random_device rd;
+
+            uint64_t attempt_counter = 0;
+            uint64_t attempt_counter_max = static_cast<uint64_t>(100) * k;
+
+            while (unique_roots.size() < k && attempt_counter < attempt_counter_max)
+            {
+                attempt_counter++;
+
+                // 무작위 숫자를 modulus로 나눈 나머지를 구합니다.
+                uint64_t candidate =
+                    barrett_reduce_64((static_cast<uint64_t>(rd()) << 32) | static_cast<uint64_t>(rd()), modulus);
+
+                // 후보를 몫 그룹의 크기만큼 거듭제곱하여 관련 없는 부분을 제거합니다.
+                candidate = exponentiate_uint_mod(candidate, size_quotient_group, modulus);
+
+                // 원시근인지 확인하고, 그렇다면 집합에 추가합니다.
+                if (is_primitive_root(candidate, degree, modulus))
+                {
+                    unique_roots.insert(candidate);
+                }
+            }
+
+            // 원하는 개수의 원시근을 찾았는지 확인합니다.
+            if (unique_roots.size() == k)
+            {
+                destination.assign(unique_roots.begin(), unique_roots.end());
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         bool try_minimal_primitive_root(uint64_t degree, const Modulus &modulus, uint64_t &destination)

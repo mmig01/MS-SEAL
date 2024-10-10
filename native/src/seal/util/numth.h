@@ -151,6 +151,10 @@ namespace seal
         // Try to find a primitive degree-th root of unity modulo small prime
         // modulus, where degree must be a power of two.
         bool try_primitive_root(std::uint64_t degree, const Modulus &prime_modulus, std::uint64_t &destination);
+        
+        // Try to find the number of primitive degree-th root of unity modulo small prime
+        // modulus, where degree must be a power of two.
+        bool try_primitive_roots(uint64_t degree, const Modulus &modulus, int k, std::vector<uint64_t> &destination);
 
         // Try to find the smallest (as integer) primitive degree-th root of
         // unity modulo small prime modulus, where degree must be a power of two.
