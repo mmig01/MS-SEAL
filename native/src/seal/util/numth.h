@@ -152,9 +152,12 @@ namespace seal
         // modulus, where degree must be a power of two.
         bool try_primitive_root(std::uint64_t degree, const Modulus &prime_modulus, std::uint64_t &destination);
         
-        // Try to find the number of primitive degree-th root of unity modulo small prime
-        // modulus, where degree must be a power of two.
-        bool try_primitive_roots(uint64_t degree, const Modulus &modulus, int k, std::vector<uint64_t> &destination);
+        // degree차 원시근의 개수를 찾으려고 시도합니다. degree는 반드시 2의 거듭제곱이어야 합니다.
+        // prime modulus에 대해 이 원시근을 찾으며, 성공할 경우 결과를 destination에 저장합니다.
+        // k개의 원시근을 찾으려고 하며, attempt_count 만큼 시도할 수 있습니다.
+        bool try_primitive_roots(
+            uint64_t degree, const Modulus &modulus, uint64_t k, std::vector<uint64_t> &destination,
+            uint64_t attempt_count = 100);
 
         // Try to find the smallest (as integer) primitive degree-th root of
         // unity modulo small prime modulus, where degree must be a power of two.

@@ -384,7 +384,8 @@ namespace seal
             return is_primitive_root(destination, degree, modulus);
         }
 
-        bool try_primitive_roots(uint64_t degree, const Modulus &modulus, int k, vector<uint64_t> &destination)
+        bool try_primitive_roots(
+            uint64_t degree, const Modulus &modulus, uint64_t k, vector<uint64_t> &destination, uint64_t attempt_count)
         {
 #ifdef SEAL_DEBUG
             if (modulus.bit_count() < 2)
@@ -419,7 +420,7 @@ namespace seal
             random_device rd;
 
             uint64_t attempt_counter = 0;
-            uint64_t attempt_counter_max = static_cast<uint64_t>(100) * k;
+            uint64_t attempt_counter_max = mul_safe(attempt_count, k);
 
             while (unique_roots.size() < k && attempt_counter < attempt_counter_max)
             {
