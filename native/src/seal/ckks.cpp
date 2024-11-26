@@ -10,7 +10,7 @@ using namespace seal::util;
 
 namespace seal
 {
-    CKKSEncoder::CKKSEncoder(const SEALContext &context) : context_(context)
+    CKKSEncoder::CKKSEncoder(const SEALContext &context, bool use_fft = true) : context_(context), use_fft_(use_fft)
     {
         // Verify parameters
         if (!context_.parameters_set())
@@ -29,24 +29,36 @@ namespace seal
         int logn = get_power_of_two(coeff_count);
 
         matrix_reps_index_map_ = allocate<size_t>(coeff_count, pool_);
-
-        // Copy from the matrix to the value vectors
-        uint64_t gen = 3;
-        uint64_t pos = 1;
         uint64_t m = static_cast<uint64_t>(coeff_count) << 1;
-        for (size_t i = 0; i < slots_; i++)
+
+        if (use_fft_)
         {
-            // Position in normal bit order
-            uint64_t index1 = (pos - 1) >> 1;
-            uint64_t index2 = (m - pos - 1) >> 1;
+            cout << "CKKSEncoder::CKKSEncoder -  36\n";
+            // Copy from the matrix to the value vectors
+            uint64_t gen = 3;
+            uint64_t pos = 1;
+            for (size_t i = 0; i < slots_; i++)
+            {
+                // Position in normal bit order
+                uint64_t index1 = (pos - 1) >> 1;
+                uint64_t index2 = (m - pos - 1) >> 1;
 
-            // Set the bit-reversed locations
-            matrix_reps_index_map_[i] = safe_cast<size_t>(reverse_bits(index1, logn));
-            matrix_reps_index_map_[slots_ | i] = safe_cast<size_t>(reverse_bits(index2, logn));
+                // Set the bit-reversed locations
+                matrix_reps_index_map_[i] = safe_cast<size_t>(reverse_bits(index1, logn));
+                matrix_reps_index_map_[slots_ | i] = safe_cast<size_t>(reverse_bits(index2, logn));
 
-            // Next primitive root
-            pos *= gen;
-            pos &= (m - 1);
+                // Next primitive root
+                pos *= gen;
+                pos &= (m - 1);
+            }
+        }
+        else
+        {
+            cout << "CKKSEncoder::CKKSEncoder -  57\n";
+            for (size_t i = 0; i < coeff_count; i++)
+            {
+                matrix_reps_index_map_[i] = i;
+            }
         }
 
         // We need 1~(n-1)-th powers of the primitive 2n-th root, m = 2n
@@ -75,6 +87,7 @@ namespace seal
     void CKKSEncoder::encode_internal(
         double value, parms_id_type parms_id, double scale, Plaintext &destination, MemoryPoolHandle pool) const
     {
+        std::cout << "CKKS.cpp - encode_internal - 85\n";
         // Verify parameters.
         auto context_data_ptr = context_.get_context_data(parms_id);
         if (!context_data_ptr)
@@ -215,6 +228,8 @@ namespace seal
 
     void CKKSEncoder::encode_internal(int64_t value, parms_id_type parms_id, Plaintext &destination) const
     {
+        std::cout << "CKKS.cpp - encode_internal - 227\n";
+
         // Verify parameters.
         auto context_data_ptr = context_.get_context_data(parms_id);
         if (!context_data_ptr)

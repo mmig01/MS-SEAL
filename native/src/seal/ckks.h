@@ -13,6 +13,7 @@
 #include "seal/util/uintcore.h"
 #include <cmath>
 #include <complex>
+#include <iostream>
 #include <limits>
 #include <type_traits>
 #include <vector>
@@ -116,7 +117,7 @@ namespace seal
         @throws std::invalid_argument if the encryption parameters are not valid
         @throws std::invalid_argument if scheme is not scheme_type::CKKS
         */
-        CKKSEncoder(const SEALContext &context);
+        CKKSEncoder(const SEALContext &context, bool use_fft);
 
         /**
         Encodes a vector of double-precision floating-point real or complex numbers
@@ -149,6 +150,7 @@ namespace seal
             const std::vector<T> &values, parms_id_type parms_id, double scale, Plaintext &destination,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - encode - 149\n";
             encode_internal(values.data(), values.size(), parms_id, scale, destination, std::move(pool));
         }
 
@@ -180,6 +182,7 @@ namespace seal
             const std::vector<T> &values, double scale, Plaintext &destination,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - encode - 181\n";
             encode(values, context_.first_parms_id(), scale, destination, std::move(pool));
         }
 #ifdef SEAL_USE_MSGSL
@@ -214,6 +217,7 @@ namespace seal
             gsl::span<const T> values, parms_id_type parms_id, double scale, Plaintext &destination,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - encode - 216\n";
             encode_internal(
                 values.data(), static_cast<std::size_t>(values.size()), parms_id, scale, destination, std::move(pool));
         }
@@ -246,6 +250,7 @@ namespace seal
             gsl::span<const T> values, double scale, Plaintext &destination,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - encode - 249\n";
             encode(values, context_.first_parms_id(), scale, destination, std::move(pool));
         }
 #endif
@@ -273,6 +278,7 @@ namespace seal
             double value, parms_id_type parms_id, double scale, Plaintext &destination,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - encode - 277\n";
             encode_internal(value, parms_id, scale, destination, std::move(pool));
         }
 
@@ -296,6 +302,7 @@ namespace seal
         inline void encode(
             double value, double scale, Plaintext &destination, MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - encode - 302\n";
             encode(value, context_.first_parms_id(), scale, destination, std::move(pool));
         }
 
@@ -322,6 +329,7 @@ namespace seal
             std::complex<double> value, parms_id_type parms_id, double scale, Plaintext &destination,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - encode - 328\n";
             encode_internal(value, parms_id, scale, destination, std::move(pool));
         }
 
@@ -346,6 +354,7 @@ namespace seal
             std::complex<double> value, double scale, Plaintext &destination,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - encode - 353\n";
             encode(value, context_.first_parms_id(), scale, destination, std::move(pool));
         }
 
@@ -362,6 +371,7 @@ namespace seal
         */
         inline void encode(std::int64_t value, parms_id_type parms_id, Plaintext &destination) const
         {
+            std::cout << "CKKS.h - encode - 372\n";
             encode_internal(value, parms_id, destination);
         }
 
@@ -376,6 +386,7 @@ namespace seal
         */
         inline void encode(std::int64_t value, Plaintext &destination) const
         {
+            std::cout << "CKKS.h - encode - 387\n";
             encode(value, context_.first_parms_id(), destination);
         }
 
@@ -400,6 +411,7 @@ namespace seal
         inline void decode(
             const Plaintext &plain, std::vector<T> &destination, MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - decode - 411\n";
             destination.resize(slots_);
             decode_internal(plain, destination.data(), std::move(pool));
         }
@@ -425,6 +437,7 @@ namespace seal
         inline void decode(
             const Plaintext &plain, gsl::span<T> destination, MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
+            std::cout << "CKKS.h - decode - 437\n";
             if (destination.size() != slots_)
             {
                 throw std::invalid_argument("destination has invalid size");
@@ -449,6 +462,7 @@ namespace seal
             const T *values, std::size_t values_size, parms_id_type parms_id, double scale, Plaintext &destination,
             MemoryPoolHandle pool) const
         {
+            std::cout << "CKKS.h - encode_internal - 459\n";
             // Verify parameters.
             auto context_data_ptr = context_.get_context_data(parms_id);
             if (!context_data_ptr)
@@ -486,139 +500,235 @@ namespace seal
                 throw std::invalid_argument("scale out of bounds");
             }
 
-            auto ntt_tables = context_data.small_ntt_tables();
-
-            // values_size is guaranteed to be no bigger than slots_
-            std::size_t n = util::mul_safe(slots_, std::size_t(2));
-
-            auto conj_values = util::allocate<std::complex<double>>(n, pool, 0);
-            for (std::size_t i = 0; i < values_size; i++)
-            {
-                conj_values[matrix_reps_index_map_[i]] = values[i];
-                // TODO: if values are real, the following values should be set to zero, and multiply results by 2.
-                conj_values[matrix_reps_index_map_[i + slots_]] = std::conj(values[i]);
-            }
-            double fix = scale / static_cast<double>(n);
-            fft_handler_.transform_from_rev(conj_values.get(), util::get_power_of_two(n), inv_root_powers_.get(), &fix);
-
-            double max_coeff = 0;
-            for (std::size_t i = 0; i < n; i++)
-            {
-                max_coeff = std::max<>(max_coeff, std::fabs(conj_values[i].real()));
-            }
-            // Verify that the values are not too large to fit in coeff_modulus
-            // Note that we have an extra + 1 for the sign bit
-            // Don't compute logarithmis of numbers less than 1
-            int max_coeff_bit_count = static_cast<int>(std::ceil(std::log2(std::max<>(max_coeff, 1.0)))) + 1;
-            if (max_coeff_bit_count >= context_data.total_coeff_modulus_bit_count())
-            {
-                throw std::invalid_argument("encoded values are too large");
-            }
-
-            double two_pow_64 = std::pow(2.0, 64);
-
             // Resize destination to appropriate size
             // Need to first set parms_id to zero, otherwise resize
             // will throw an exception.
             destination.parms_id() = parms_id_zero;
             destination.resize(util::mul_safe(coeff_count, coeff_modulus_size));
 
-            // Use faster decomposition methods when possible
-            if (max_coeff_bit_count <= 64)
+            // Initialize destination to zero
+            util::set_zero_poly(coeff_count, coeff_modulus_size, destination.data());
+
+            if (use_fft_)
             {
+                // FFT를 사용하는 기존 코드 수행
+                // values_size is guaranteed to be no bigger than slots_
+                std::size_t n = util::mul_safe(slots_, std::size_t(2));
+
+                auto conj_values = util::allocate<std::complex<double>>(n, pool, 0);
+                // Initialize conj_values to zero
+                std::fill_n(conj_values.get(), n, std::complex<double>(0, 0));
+
+                for (std::size_t i = 0; i < values_size; i++)
+                {
+                    conj_values[matrix_reps_index_map_[i]] = values[i];
+                    // TODO: if values are real, the following values should be set to zero, and multiply results by 2.
+                    conj_values[matrix_reps_index_map_[i + slots_]] = std::conj(values[i]);
+                }
+
+                double fix = scale / static_cast<double>(n);
+                fft_handler_.transform_from_rev(
+                    conj_values.get(), util::get_power_of_two(n), inv_root_powers_.get(), &fix);
+
+                double max_coeff = 0;
                 for (std::size_t i = 0; i < n; i++)
                 {
-                    double coeffd = std::round(conj_values[i].real());
-                    bool is_negative = std::signbit(coeffd);
+                    max_coeff = std::max<>(max_coeff, std::fabs(conj_values[i].real()));
+                }
+                // Verify that the values are not too large to fit in coeff_modulus
+                // Note that we have an extra + 1 for the sign bit
+                // Don't compute logarithms of numbers less than 1
+                int max_coeff_bit_count = static_cast<int>(std::ceil(std::log2(std::max<>(max_coeff, 1.0)))) + 1;
+                if (max_coeff_bit_count >= context_data.total_coeff_modulus_bit_count())
+                {
+                    throw std::invalid_argument("encoded values are too large");
+                }
 
-                    std::uint64_t coeffu = static_cast<std::uint64_t>(std::fabs(coeffd));
+                double two_pow_64 = std::pow(2.0, 64);
 
-                    if (is_negative)
+                // Use faster decomposition methods when possible
+                if (max_coeff_bit_count <= 64)
+                {
+                    for (std::size_t i = 0; i < n; i++)
                     {
-                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                        double coeffd = std::round(conj_values[i].real());
+                        bool is_negative = std::signbit(coeffd);
+
+                        std::uint64_t coeffu = static_cast<std::uint64_t>(std::fabs(coeffd));
+
+                        if (is_negative)
                         {
-                            destination[i + (j * coeff_count)] = util::negate_uint_mod(
-                                util::barrett_reduce_64(coeffu, coeff_modulus[j]), coeff_modulus[j]);
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = util::negate_uint_mod(
+                                    util::barrett_reduce_64(coeffu, coeff_modulus[j]), coeff_modulus[j]);
+                            }
                         }
-                    }
-                    else
-                    {
-                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                        else
                         {
-                            destination[i + (j * coeff_count)] = util::barrett_reduce_64(coeffu, coeff_modulus[j]);
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = util::barrett_reduce_64(coeffu, coeff_modulus[j]);
+                            }
                         }
                     }
                 }
-            }
-            else if (max_coeff_bit_count <= 128)
-            {
-                for (std::size_t i = 0; i < n; i++)
+                else if (max_coeff_bit_count <= 128)
                 {
-                    double coeffd = std::round(conj_values[i].real());
-                    bool is_negative = std::signbit(coeffd);
-                    coeffd = std::fabs(coeffd);
-
-                    std::uint64_t coeffu[2]{ static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64)),
-                                             static_cast<std::uint64_t>(coeffd / two_pow_64) };
-
-                    if (is_negative)
+                    for (std::size_t i = 0; i < n; i++)
                     {
-                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                        double coeffd = std::round(conj_values[i].real());
+                        bool is_negative = std::signbit(coeffd);
+                        coeffd = std::fabs(coeffd);
+
+                        std::uint64_t coeffu[2]{ static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64)),
+                                                 static_cast<std::uint64_t>(coeffd / two_pow_64) };
+
+                        if (is_negative)
                         {
-                            destination[i + (j * coeff_count)] = util::negate_uint_mod(
-                                util::barrett_reduce_128(coeffu, coeff_modulus[j]), coeff_modulus[j]);
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = util::negate_uint_mod(
+                                    util::barrett_reduce_128(coeffu, coeff_modulus[j]), coeff_modulus[j]);
+                            }
+                        }
+                        else
+                        {
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = util::barrett_reduce_128(coeffu, coeff_modulus[j]);
+                            }
                         }
                     }
-                    else
+                }
+                else
+                {
+                    // Slow case
+                    auto coeffu(util::allocate_uint(coeff_modulus_size, pool));
+                    for (std::size_t i = 0; i < n; i++)
                     {
-                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                        double coeffd = std::round(conj_values[i].real());
+                        bool is_negative = std::signbit(coeffd);
+                        coeffd = std::fabs(coeffd);
+
+                        // We are at this point guaranteed to fit in the allocated space
+                        util::set_zero_uint(coeff_modulus_size, coeffu.get());
+                        auto coeffu_ptr = coeffu.get();
+                        while (coeffd >= 1)
                         {
-                            destination[i + (j * coeff_count)] = util::barrett_reduce_128(coeffu, coeff_modulus[j]);
+                            *coeffu_ptr++ = static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64));
+                            coeffd /= two_pow_64;
+                        }
+
+                        // Next decompose this coefficient
+                        context_data.rns_tool()->base_q()->decompose(coeffu.get(), pool);
+
+                        // Finally replace the sign if necessary
+                        if (is_negative)
+                        {
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = util::negate_uint_mod(coeffu[j], coeff_modulus[j]);
+                            }
+                        }
+                        else
+                        {
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = coeffu[j];
+                            }
                         }
                     }
                 }
             }
             else
             {
-                // Slow case
-                auto coeffu(util::allocate_uint(coeff_modulus_size, pool));
+                // IFFT를 사용하지 않고 벡터를 다항식의 계수로 직접 사용하는 코드
+                
+                // Initialize conj_values to zero
+                std::size_t n = values_size;
+                auto complex_values = util::allocate<std::complex<double>>(n, pool, 0);
+                std::fill_n(complex_values.get(), n, std::complex<double>(0, 0));
+
                 for (std::size_t i = 0; i < n; i++)
                 {
-                    double coeffd = std::round(conj_values[i].real());
+                    complex_values[i] = values[i];
+                }
+
+                double max_coeff = 0;
+
+                for (std::size_t i = 0; i < n; i++)
+                {
+                    double coeffd = complex_values[i].real() * scale;
+                    coeffd = std::round(coeffd);
+                    max_coeff = std::max<>(max_coeff, std::fabs(coeffd));
+
                     bool is_negative = std::signbit(coeffd);
                     coeffd = std::fabs(coeffd);
 
-                    // We are at this point guaranteed to fit in the allocated space
-                    util::set_zero_uint(coeff_modulus_size, coeffu.get());
-                    auto coeffu_ptr = coeffu.get();
-                    while (coeffd >= 1)
+                    if (coeffd <= static_cast<double>(std::numeric_limits<std::uint64_t>::max()))
                     {
-                        *coeffu_ptr++ = static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64));
-                        coeffd /= two_pow_64;
-                    }
+                        std::uint64_t coeffu = static_cast<std::uint64_t>(coeffd);
 
-                    // Next decompose this coefficient
-                    context_data.rns_tool()->base_q()->decompose(coeffu.get(), pool);
-
-                    // Finally replace the sign if necessary
-                    if (is_negative)
-                    {
-                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                        if (is_negative)
                         {
-                            destination[i + (j * coeff_count)] = util::negate_uint_mod(coeffu[j], coeff_modulus[j]);
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = util::negate_uint_mod(
+                                    util::barrett_reduce_64(coeffu, coeff_modulus[j]), coeff_modulus[j]);
+                            }
+                        }
+                        else
+                        {
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = util::barrett_reduce_64(coeffu, coeff_modulus[j]);
+                            }
                         }
                     }
                     else
                     {
-                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                        double two_pow_64 = std::pow(2.0, 64);
+                        std::uint64_t coeffu[2]{ static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64)),
+                                                 static_cast<std::uint64_t>(coeffd / two_pow_64) };
+
+                        if (is_negative)
                         {
-                            destination[i + (j * coeff_count)] = coeffu[j];
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = util::negate_uint_mod(
+                                    util::barrett_reduce_128(coeffu, coeff_modulus[j]), coeff_modulus[j]);
+                            }
+                        }
+                        else
+                        {
+                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                            {
+                                destination[i + (j * coeff_count)] = util::barrett_reduce_128(coeffu, coeff_modulus[j]);
+                            }
                         }
                     }
+                }
+
+                // 나머지 계수들은 0으로 설정
+                for (std::size_t i = n; i < coeff_count; i++)
+                {
+                    for (std::size_t j = 0; j < coeff_modulus_size; j++)
+                    {
+                        destination[i + (j * coeff_count)] = 0;
+                    }
+                }
+
+                int max_coeff_bit_count = static_cast<int>(std::ceil(std::log2(std::max<>(max_coeff, 1.0)))) + 1;
+                if (max_coeff_bit_count >= context_data.total_coeff_modulus_bit_count())
+                {
+                    throw std::invalid_argument("encoded values are too large");
                 }
             }
 
             // Transform to NTT domain
+            auto ntt_tables = context_data.small_ntt_tables();
+
             for (std::size_t i = 0; i < coeff_modulus_size; i++)
             {
                 util::ntt_negacyclic_harvey(destination.data(i * coeff_count), ntt_tables[i]);
@@ -634,6 +744,8 @@ namespace seal
                             std::is_same<std::remove_cv_t<T>, std::complex<double>>::value>>
         void decode_internal(const Plaintext &plain, T *destination, MemoryPoolHandle pool) const
         {
+            std::cout << "CKKS.h - decode_internal - 655\n";
+
             // Verify parameters.
             if (!is_valid_for(plain, context_))
             {
@@ -654,7 +766,8 @@ namespace seal
 
             auto &context_data = *context_.get_context_data(plain.parms_id());
             auto &parms = context_data.parms();
-            std::size_t coeff_modulus_size = parms.coeff_modulus().size();
+            auto &coeff_modulus = parms.coeff_modulus();
+            std::size_t coeff_modulus_size = coeff_modulus.size();
             std::size_t coeff_count = parms.poly_modulus_degree();
             std::size_t rns_poly_uint64_count = util::mul_safe(coeff_count, coeff_modulus_size);
 
@@ -677,7 +790,7 @@ namespace seal
                 throw std::logic_error("invalid parameters");
             }
 
-            double inv_scale = double(1.0) / plain.scale();
+            double inv_scale = 1.0 / plain.scale();
 
             // Create mutable copy of input
             auto plain_copy(util::allocate_uint(rns_poly_uint64_count, pool));
@@ -701,23 +814,27 @@ namespace seal
                 if (util::is_greater_than_or_equal_uint(
                         plain_copy.get() + (i * coeff_modulus_size), upper_half_threshold, coeff_modulus_size))
                 {
+                    // Coefficient is in the upper half of [0, modulus), so we need to subtract modulus to get the
+                    // correct value
                     double scaled_two_pow_64 = inv_scale;
                     for (std::size_t j = 0; j < coeff_modulus_size; j++, scaled_two_pow_64 *= two_pow_64)
                     {
-                        if (plain_copy[i * coeff_modulus_size + j] > decryption_modulus[j])
+                        auto curr_coeff = plain_copy[i * coeff_modulus_size + j];
+                        if (curr_coeff > decryption_modulus[j])
                         {
-                            auto diff = plain_copy[i * coeff_modulus_size + j] - decryption_modulus[j];
+                            auto diff = curr_coeff - decryption_modulus[j];
                             res[i] += diff ? static_cast<double>(diff) * scaled_two_pow_64 : 0.0;
                         }
                         else
                         {
-                            auto diff = decryption_modulus[j] - plain_copy[i * coeff_modulus_size + j];
+                            auto diff = decryption_modulus[j] - curr_coeff;
                             res[i] -= diff ? static_cast<double>(diff) * scaled_two_pow_64 : 0.0;
                         }
                     }
                 }
                 else
                 {
+                    // Coefficient is in the lower half of [0, modulus)
                     double scaled_two_pow_64 = inv_scale;
                     for (std::size_t j = 0; j < coeff_modulus_size; j++, scaled_two_pow_64 *= two_pow_64)
                     {
@@ -725,18 +842,25 @@ namespace seal
                         res[i] += curr_coeff ? static_cast<double>(curr_coeff) * scaled_two_pow_64 : 0.0;
                     }
                 }
-
-                // Scaling instead incorporated above; this can help in cases
-                // where otherwise pow(two_pow_64, j) would overflow due to very
-                // large coeff_modulus_size and very large scale
-                // res[i] = res_accum * inv_scale;
             }
 
-            fft_handler_.transform_to_rev(res.get(), logn, root_powers_.get());
-
-            for (std::size_t i = 0; i < slots_; i++)
+            if (use_fft_)
             {
-                destination[i] = from_complex<T>(res[static_cast<std::size_t>(matrix_reps_index_map_[i])]);
+                // FFT를 사용하는 경우
+                fft_handler_.transform_to_rev(res.get(), logn, root_powers_.get());
+
+                for (std::size_t i = 0; i < slots_; i++)
+                {
+                    destination[i] = from_complex<T>(res[static_cast<std::size_t>(matrix_reps_index_map_[i])]);
+                }
+            }
+            else
+            {
+                // FFT를 사용하지 않는 경우
+                for (std::size_t i = 0; i < slots_; i++)
+                {
+                    destination[i] = from_complex<T>(res[i]);
+                }
             }
         }
 
@@ -747,6 +871,7 @@ namespace seal
             std::complex<double> value, parms_id_type parms_id, double scale, Plaintext &destination,
             MemoryPoolHandle pool) const
         {
+            std::cout << "CKKS.h - encode_internal - 767\n";
             auto input = util::allocate<std::complex<double>>(slots_, pool_, value);
             encode_internal(input.get(), slots_, parms_id, scale, destination, std::move(pool));
         }
@@ -756,6 +881,8 @@ namespace seal
         MemoryPoolHandle pool_ = MemoryManager::GetPool();
 
         SEALContext context_;
+
+        bool use_fft_;
 
         std::size_t slots_;
 
