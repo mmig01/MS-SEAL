@@ -14,7 +14,7 @@ using namespace seal::util;
 
 namespace seal
 {
-    BatchEncoder::BatchEncoder(const SEALContext &context, bool use_ntt = true) : context_(context), use_ntt_(use_ntt)
+    BatchEncoder::BatchEncoder(const SEALContext &context) : context_(context)
     {
         // Verify parameters
         if (!context_.parameters_set())
@@ -66,34 +66,24 @@ namespace seal
         int logn = get_power_of_two(slots_);
         matrix_reps_index_map_ = allocate<size_t>(slots_, pool_);
 
-        if (use_ntt_)
+        // Copy from the matrix to the value vectors
+        size_t row_size = slots_ >> 1;
+        size_t m = slots_ << 1;
+        uint64_t gen = 3;
+        uint64_t pos = 1;
+        for (size_t i = 0; i < row_size; i++)
         {
-            // Copy from the matrix to the value vectors
-            size_t row_size = slots_ >> 1;
-            size_t m = slots_ << 1;
-            uint64_t gen = 3;
-            uint64_t pos = 1;
-            for (size_t i = 0; i < row_size; i++)
-            {
-                // Position in normal bit order
-                uint64_t index1 = (pos - 1) >> 1;
-                uint64_t index2 = (m - pos - 1) >> 1;
+            // Position in normal bit order
+            uint64_t index1 = (pos - 1) >> 1;
+            uint64_t index2 = (m - pos - 1) >> 1;
 
-                // Set the bit-reversed locations
-                matrix_reps_index_map_[i] = safe_cast<size_t>(util::reverse_bits(index1, logn));
-                matrix_reps_index_map_[row_size | i] = safe_cast<size_t>(util::reverse_bits(index2, logn));
+            // Set the bit-reversed locations
+            matrix_reps_index_map_[i] = safe_cast<size_t>(util::reverse_bits(index1, logn));
+            matrix_reps_index_map_[row_size | i] = safe_cast<size_t>(util::reverse_bits(index2, logn));
 
-                // Next primitive root
-                pos *= gen;
-                pos &= (m - 1);
-            }
-        }
-        else
-        {
-            for (size_t i = 0; i < slots_; i++)
-            {
-                matrix_reps_index_map_[i] = i;
-            }
+            // Next primitive root
+            pos *= gen;
+            pos &= (m - 1);
         }
     }
 
@@ -117,7 +107,8 @@ namespace seal
         }
     }
 
-    void BatchEncoder::encode(const vector<uint64_t> &values_matrix, Plaintext &destination) const
+    void BatchEncoder::encode(
+        const vector<uint64_t> &values_matrix, Plaintext &destination, mul_mode_type mul_mode) const
     {
         auto &context_data = *context_.first_context_data();
 
@@ -142,26 +133,48 @@ namespace seal
         destination.resize(slots_);
         destination.parms_id() = parms_id_zero;
 
-        // First write the values to destination coefficients.
-        // Read in top row, then bottom row.
-        for (size_t i = 0; i < values_matrix_size; i++)
-        {
-            *(destination.data() + matrix_reps_index_map_[i]) = values_matrix[i];
-        }
-        for (size_t i = values_matrix_size; i < slots_; i++)
-        {
-            *(destination.data() + matrix_reps_index_map_[i]) = 0;
-        }
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-28
+        Modified By: Dice15
 
-        // Transform destination using inverse of negacyclic NTT
-        // Note: We already performed bit-reversal when reading in the matrix
-        if (use_ntt_)
+        Added support for mul_mode_type parameter to determine the multiplication mode:
+        - `element_wise`: Standard element-wise multiplication mode with inverse negacyclic NTT applied.
+        - `convolution`: Convolution-based multiplication mode without NTT transformation.
+        */
+        if (mul_mode == mul_mode_type::element_wise)
         {
+            // First write the values to destination coefficients.
+            // Read in top row, then bottom row.
+            for (size_t i = 0; i < values_matrix_size; i++)
+            {
+                *(destination.data() + matrix_reps_index_map_[i]) = values_matrix[i];
+            }
+            for (size_t i = values_matrix_size; i < slots_; i++)
+            {
+                *(destination.data() + matrix_reps_index_map_[i]) = 0;
+            }
+
+            // Transform destination using inverse of negacyclic NTT
+            // Note: We already performed bit-reversal when reading in the matrix
             inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        }
+        else if (mul_mode == mul_mode_type::convolution)
+        {
+            // Write values to destination coefficients directly without mapping.
+            for (size_t i = 0; i < values_matrix_size; i++)
+            {
+                *(destination.data() + i) = values_matrix[i];
+            }
+            for (size_t i = values_matrix_size; i < slots_; i++)
+            {
+                *(destination.data() + i) = 0;
+            }
         }
     }
 
-    void BatchEncoder::encode(const vector<int64_t> &values_matrix, Plaintext &destination) const
+    void BatchEncoder::encode(
+        const vector<int64_t> &values_matrix, Plaintext &destination, mul_mode_type mul_mode) const
     {
         auto &context_data = *context_.first_context_data();
         uint64_t modulus = context_data.parms().plain_modulus().value();
@@ -187,28 +200,51 @@ namespace seal
         destination.resize(slots_);
         destination.parms_id() = parms_id_zero;
 
-        // First write the values to destination coefficients.
-        // Read in top row, then bottom row.
-        for (size_t i = 0; i < values_matrix_size; i++)
-        {
-            *(destination.data() + matrix_reps_index_map_[i]) =
-                (values_matrix[i] < 0) ? (modulus + static_cast<uint64_t>(values_matrix[i]))
-                                       : static_cast<uint64_t>(values_matrix[i]);
-        }
-        for (size_t i = values_matrix_size; i < slots_; i++)
-        {
-            *(destination.data() + matrix_reps_index_map_[i]) = 0;
-        }
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-28
+        Modified By: Dice15
 
-        // Transform destination using inverse of negacyclic NTT
-        // Note: We already performed bit-reversal when reading in the matrix
-        if (use_ntt_)
+        Added support for mul_mode_type parameter to determine the multiplication mode:
+        - `element_wise`: Standard element-wise multiplication mode with inverse negacyclic NTT applied.
+        - `convolution`: Convolution-based multiplication mode without NTT transformation.
+        */
+        if (mul_mode == mul_mode_type::element_wise)
         {
+            // First write the values to destination coefficients.
+            // Read in top row, then bottom row.
+            for (size_t i = 0; i < values_matrix_size; i++)
+            {
+                *(destination.data() + matrix_reps_index_map_[i]) =
+                    (values_matrix[i] < 0) ? (modulus + static_cast<uint64_t>(values_matrix[i]))
+                                           : static_cast<uint64_t>(values_matrix[i]);
+            }
+            for (size_t i = values_matrix_size; i < slots_; i++)
+            {
+                *(destination.data() + matrix_reps_index_map_[i]) = 0;
+            }
+
+            // Transform destination using inverse of negacyclic NTT
+            // Note: We already performed bit-reversal when reading in the matrix
             inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        }
+        else if (mul_mode == mul_mode_type::convolution)
+        {
+            // Write values to destination coefficients directly without mapping.
+            for (size_t i = 0; i < values_matrix_size; i++)
+            {
+                *(destination.data() + i) = (values_matrix[i] < 0) ? (modulus + static_cast<uint64_t>(values_matrix[i]))
+                                                                   : static_cast<uint64_t>(values_matrix[i]);
+            }
+            for (size_t i = values_matrix_size; i < slots_; i++)
+            {
+                *(destination.data() + i) = 0;
+            }
         }
     }
 #ifdef SEAL_USE_MSGSL
-    void BatchEncoder::encode(gsl::span<const uint64_t> values_matrix, Plaintext &destination) const
+    void BatchEncoder::encode(
+        gsl::span<const uint64_t> values_matrix, Plaintext &destination, mul_mode_type mul_mode) const
     {
         auto &context_data = *context_.first_context_data();
 
@@ -233,22 +269,47 @@ namespace seal
         destination.resize(slots_);
         destination.parms_id() = parms_id_zero;
 
-        // First write the values to destination coefficients. Read in top row, then bottom row.
-        for (size_t i = 0; i < values_matrix_size; i++)
-        {
-            *(destination.data() + matrix_reps_index_map_[i]) = values_matrix[i];
-        }
-        for (size_t i = values_matrix_size; i < slots_; i++)
-        {
-            *(destination.data() + matrix_reps_index_map_[i]) = 0;
-        }
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-28
+        Modified By: Dice15
 
-        // Transform destination using inverse of negacyclic NTT
-        // Note: We already performed bit-reversal when reading in the matrix
-        inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        Added support for mul_mode_type parameter to determine the multiplication mode:
+        - `element_wise`: Standard element-wise multiplication mode with inverse negacyclic NTT applied.
+        - `convolution`: Convolution-based multiplication mode without NTT transformation.
+        */
+        if (mul_mode == mul_mode_type::element_wise)
+        {
+            // First write the values to destination coefficients. Read in top row, then bottom row.
+            for (size_t i = 0; i < values_matrix_size; i++)
+            {
+                *(destination.data() + matrix_reps_index_map_[i]) = values_matrix[i];
+            }
+            for (size_t i = values_matrix_size; i < slots_; i++)
+            {
+                *(destination.data() + matrix_reps_index_map_[i]) = 0;
+            }
+
+            // Transform destination using inverse of negacyclic NTT
+            // Note: We already performed bit-reversal when reading in the matrix
+            inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        }
+        else if (mul_mode == mul_mode_type::convolution)
+        {
+            // Write values to destination coefficients directly without mapping.
+            for (size_t i = 0; i < values_matrix_size; i++)
+            {
+                *(destination.data() + i) = values_matrix[i];
+            }
+            for (size_t i = values_matrix_size; i < slots_; i++)
+            {
+                *(destination.data() + i) = 0;
+            }
+        }
     }
 
-    void BatchEncoder::encode(gsl::span<const int64_t> values_matrix, Plaintext &destination) const
+    void BatchEncoder::encode(
+        gsl::span<const int64_t> values_matrix, Plaintext &destination, mul_mode_type mul_mode) const
     {
         auto &context_data = *context_.first_context_data();
         uint64_t modulus = context_data.parms().plain_modulus().value();
@@ -274,24 +335,50 @@ namespace seal
         destination.resize(slots_);
         destination.parms_id() = parms_id_zero;
 
-        // First write the values to destination coefficients. Read in top row, then bottom row.
-        for (size_t i = 0; i < values_matrix_size; i++)
-        {
-            *(destination.data() + matrix_reps_index_map_[i]) =
-                (values_matrix[i] < 0) ? (modulus + static_cast<uint64_t>(values_matrix[i]))
-                                       : static_cast<uint64_t>(values_matrix[i]);
-        }
-        for (size_t i = values_matrix_size; i < slots_; i++)
-        {
-            *(destination.data() + matrix_reps_index_map_[i]) = 0;
-        }
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-28
+        Modified By: Dice15
 
-        // Transform destination using inverse of negacyclic NTT
-        // Note: We already performed bit-reversal when reading in the matrix
-        inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        Added support for mul_mode_type parameter to determine the multiplication mode:
+        - `element_wise`: Standard element-wise multiplication mode with inverse negacyclic NTT applied.
+        - `convolution`: Convolution-based multiplication mode without NTT transformation.
+        */
+        if (mul_mode == mul_mode_type::element_wise)
+        {
+            // First write the values to destination coefficients. Read in top row, then bottom row.
+            for (size_t i = 0; i < values_matrix_size; i++)
+            {
+                *(destination.data() + matrix_reps_index_map_[i]) =
+                    (values_matrix[i] < 0) ? (modulus + static_cast<uint64_t>(values_matrix[i]))
+                                           : static_cast<uint64_t>(values_matrix[i]);
+            }
+            for (size_t i = values_matrix_size; i < slots_; i++)
+            {
+                *(destination.data() + matrix_reps_index_map_[i]) = 0;
+            }
+
+            // Transform destination using inverse of negacyclic NTT
+            // Note: We already performed bit-reversal when reading in the matrix
+            inverse_ntt_negacyclic_harvey(destination.data(), *context_data.plain_ntt_tables());
+        }
+        else if (mul_mode == mul_mode_type::convolution)
+        {
+            // Write values to destination coefficients directly without mapping.
+            for (size_t i = 0; i < values_matrix_size; i++)
+            {
+                *(destination.data() + i) = (values_matrix[i] < 0) ? (modulus + static_cast<uint64_t>(values_matrix[i]))
+                                                                   : static_cast<uint64_t>(values_matrix[i]);
+            }
+            for (size_t i = values_matrix_size; i < slots_; i++)
+            {
+                *(destination.data() + i) = 0;
+            }
+        }
     }
 #endif
-    void BatchEncoder::decode(const Plaintext &plain, vector<uint64_t> &destination, MemoryPoolHandle pool) const
+    void BatchEncoder::decode(
+        const Plaintext &plain, vector<uint64_t> &destination, mul_mode_type mul_mode, MemoryPoolHandle pool) const
     {
         if (!is_valid_for(plain, context_))
         {
@@ -320,20 +407,39 @@ namespace seal
         set_uint(plain.data(), plain_coeff_count, temp_dest.get());
         set_zero_uint(slots_ - plain_coeff_count, temp_dest.get() + plain_coeff_count);
 
-        // Transform destination using negacyclic NTT.
-        if (use_ntt_)
-        {
-            ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
-        }
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-28
+        Modified By: Dice15
 
-        // Read top row, then bottom row
-        for (size_t i = 0; i < slots_; i++)
+        Added support for the `mul_mode_type` parameter:
+        - `element_wise`: Perform inverse NTT transformation and reorder coefficients based on the index map
+        (`matrix_reps_index_map_`).
+        - `convolution`: Directly copy the coefficients without transformation or reordering.
+        */
+        if (mul_mode == mul_mode_type::element_wise)
         {
-            destination[i] = temp_dest[matrix_reps_index_map_[i]];
+            // Transform destination using negacyclic NTT.
+            ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+
+            // Read top row, then bottom row
+            for (size_t i = 0; i < slots_; i++)
+            {
+                destination[i] = temp_dest[matrix_reps_index_map_[i]];
+            }
+        }
+        else if (mul_mode == mul_mode_type::convolution)
+        {
+            // Copy coefficients directly without transformation or reordering.
+            for (size_t i = 0; i < slots_; i++)
+            {
+                destination[i] = temp_dest[i];
+            }
         }
     }
 
-    void BatchEncoder::decode(const Plaintext &plain, vector<int64_t> &destination, MemoryPoolHandle pool) const
+    void BatchEncoder::decode(
+        const Plaintext &plain, vector<int64_t> &destination, mul_mode_type mul_mode, MemoryPoolHandle pool) const
     {
         if (!is_valid_for(plain, context_))
         {
@@ -363,24 +469,47 @@ namespace seal
         set_uint(plain.data(), plain_coeff_count, temp_dest.get());
         set_zero_uint(slots_ - plain_coeff_count, temp_dest.get() + plain_coeff_count);
 
-        // Transform destination using negacyclic NTT.
-        if (use_ntt_)
-        {
-            ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
-        }
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-28
+        Modified By: Dice15
 
-        // Read top row, then bottom row
-        uint64_t plain_modulus_div_two = modulus >> 1;
-        for (size_t i = 0; i < slots_; i++)
+        Added support for the `mul_mode_type` parameter:
+        - `element_wise`: Perform inverse NTT transformation and reorder coefficients based on the index map
+        (`matrix_reps_index_map_`).
+        - `convolution`: Directly copy the coefficients without transformation or reordering.
+        */
+        if (mul_mode == mul_mode_type::element_wise)
         {
-            uint64_t curr_value = temp_dest[matrix_reps_index_map_[i]];
-            destination[i] = (curr_value > plain_modulus_div_two)
-                                 ? (static_cast<int64_t>(curr_value) - static_cast<int64_t>(modulus))
-                                 : static_cast<int64_t>(curr_value);
+            // Transform destination using negacyclic NTT.
+            ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+
+            // Read top row, then bottom row
+            uint64_t plain_modulus_div_two = modulus >> 1;
+            for (size_t i = 0; i < slots_; i++)
+            {
+                uint64_t curr_value = temp_dest[matrix_reps_index_map_[i]];
+                destination[i] = (curr_value > plain_modulus_div_two)
+                                     ? (static_cast<int64_t>(curr_value) - static_cast<int64_t>(modulus))
+                                     : static_cast<int64_t>(curr_value);
+            }
+        }
+        else if (mul_mode == mul_mode_type::convolution)
+        {
+            // Copy coefficients directly without transformation or reordering.
+            uint64_t plain_modulus_div_two = modulus >> 1;
+            for (size_t i = 0; i < slots_; i++)
+            {
+                uint64_t curr_value = temp_dest[i];
+                destination[i] = (curr_value > plain_modulus_div_two)
+                                     ? (static_cast<int64_t>(curr_value) - static_cast<int64_t>(modulus))
+                                     : static_cast<int64_t>(curr_value);
+            }
         }
     }
 #ifdef SEAL_USE_MSGSL
-    void BatchEncoder::decode(const Plaintext &plain, gsl::span<uint64_t> destination, MemoryPoolHandle pool) const
+    void BatchEncoder::decode(
+        const Plaintext &plain, gsl::span<uint64_t> destination, mul_mode_type mul_mode, MemoryPoolHandle pool) const
     {
         if (!is_valid_for(plain, context_))
         {
@@ -411,17 +540,39 @@ namespace seal
         set_uint(plain.data(), plain_coeff_count, temp_dest.get());
         set_zero_uint(slots_ - plain_coeff_count, temp_dest.get() + plain_coeff_count);
 
-        // Transform destination using negacyclic NTT.
-        ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-28
+        Modified By: Dice15
 
-        // Read top row, then bottom row
-        for (size_t i = 0; i < slots_; i++)
+        Added support for the `mul_mode_type` parameter:
+        - `element_wise`: Perform inverse NTT transformation and reorder coefficients based on the index map
+        (`matrix_reps_index_map_`).
+        - `convolution`: Directly copy the coefficients without transformation or reordering.
+        */
+        if (mul_mode == mul_mode_type::element_wise)
         {
-            destination[i] = temp_dest[matrix_reps_index_map_[i]];
+            // Transform destination using negacyclic NTT.
+            ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+
+            // Read top row, then bottom row
+            for (size_t i = 0; i < slots_; i++)
+            {
+                destination[i] = temp_dest[matrix_reps_index_map_[i]];
+            }
+        }
+        else if (mul_mode == mul_mode_type::convolution)
+        {
+            // Copy coefficients directly without transformation or reordering.
+            for (size_t i = 0; i < slots_; i++)
+            {
+                destination[i] = temp_dest[i];
+            }
         }
     }
 
-    void BatchEncoder::decode(const Plaintext &plain, gsl::span<int64_t> destination, MemoryPoolHandle pool) const
+    void BatchEncoder::decode(
+        const Plaintext &plain, gsl::span<int64_t> destination, mul_mode_type mul_mode, MemoryPoolHandle pool) const
     {
         if (!is_valid_for(plain, context_))
         {
@@ -453,17 +604,42 @@ namespace seal
         set_uint(plain.data(), plain_coeff_count, temp_dest.get());
         set_zero_uint(slots_ - plain_coeff_count, temp_dest.get() + plain_coeff_count);
 
-        // Transform destination using negacyclic NTT.
-        ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-28
+        Modified By: Dice15
 
-        // Read top row, then bottom row
-        uint64_t plain_modulus_div_two = modulus >> 1;
-        for (size_t i = 0; i < slots_; i++)
+        Added support for the `mul_mode_type` parameter:
+        - `element_wise`: Perform inverse NTT transformation and reorder coefficients based on the index map
+        (`matrix_reps_index_map_`).
+        - `convolution`: Directly copy the coefficients without transformation or reordering.
+        */
+        if (mul_mode == mul_mode_type::element_wise)
         {
-            uint64_t curr_value = temp_dest[matrix_reps_index_map_[i]];
-            destination[i] = (curr_value > plain_modulus_div_two)
-                                 ? (static_cast<int64_t>(curr_value) - static_cast<int64_t>(modulus))
-                                 : static_cast<int64_t>(curr_value);
+            // Transform destination using negacyclic NTT.
+            ntt_negacyclic_harvey(temp_dest.get(), *context_data.plain_ntt_tables());
+
+            // Read top row, then bottom row
+            uint64_t plain_modulus_div_two = modulus >> 1;
+            for (size_t i = 0; i < slots_; i++)
+            {
+                uint64_t curr_value = temp_dest[matrix_reps_index_map_[i]];
+                destination[i] = (curr_value > plain_modulus_div_two)
+                                     ? (static_cast<int64_t>(curr_value) - static_cast<int64_t>(modulus))
+                                     : static_cast<int64_t>(curr_value);
+            }
+        }
+        else if (mul_mode == mul_mode_type::convolution)
+        {
+            // Copy coefficients directly without transformation or reordering.
+            uint64_t plain_modulus_div_two = modulus >> 1;
+            for (size_t i = 0; i < slots_; i++)
+            {
+                uint64_t curr_value = temp_dest[i];
+                destination[i] = (curr_value > plain_modulus_div_two)
+                                     ? (static_cast<int64_t>(curr_value) - static_cast<int64_t>(modulus))
+                                     : static_cast<int64_t>(curr_value);
+            }
         }
     }
 #endif

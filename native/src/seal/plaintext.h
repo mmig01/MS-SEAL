@@ -23,6 +23,35 @@
 namespace seal
 {
     /**
+    [MODIFIED]
+    Modification Date: 2024-11-28
+    Modified By: Dice15
+
+    @enum mul_mode_type
+    Enum class that defines the type of multiplication to perform in BatchEncoder.
+
+    @var mul_mode_type::element_wise
+    Indicates that multiplication operations will be performed element-wise, where each slot
+    in the plaintext is multiplied by the corresponding slot.
+
+    @var mul_mode_type::convolution
+    Indicates that multiplication operations will use convolution, applying a sliding window
+    operation across the plaintext matrix.
+
+    Note:
+    - This setting applies only to multiplication operations.
+    - Addition operations are always performed element-wise, regardless of the selected type.
+    */
+    enum class mul_mode_type : std::uint8_t
+    {
+        // Perform element-wise multiplication.
+        element_wise = 0x1,
+
+        // Perform convolution-based multiplication.
+        convolution = 0x2
+    };
+
+    /**
     Class to store a plaintext element. The data for the plaintext is a polynomial
     with coefficients modulo the plaintext modulus. The degree of the plaintext
     polynomial must be one less than the degree of the polynomial modulus. The
