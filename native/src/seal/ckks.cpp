@@ -10,7 +10,7 @@ using namespace seal::util;
 
 namespace seal
 {
-    CKKSEncoder::CKKSEncoder(const SEALContext &context, bool use_fft = true) : context_(context), use_fft_(use_fft)
+    CKKSEncoder::CKKSEncoder(const SEALContext &context) : context_(context)
     {
         // Verify parameters
         if (!context_.parameters_set())
@@ -29,36 +29,24 @@ namespace seal
         int logn = get_power_of_two(coeff_count);
 
         matrix_reps_index_map_ = allocate<size_t>(coeff_count, pool_);
+
+        // Copy from the matrix to the value vectors
+        uint64_t gen = 3;
+        uint64_t pos = 1;
         uint64_t m = static_cast<uint64_t>(coeff_count) << 1;
-
-        if (use_fft_)
+        for (size_t i = 0; i < slots_; i++)
         {
-            cout << "CKKSEncoder::CKKSEncoder -  36\n";
-            // Copy from the matrix to the value vectors
-            uint64_t gen = 3;
-            uint64_t pos = 1;
-            for (size_t i = 0; i < slots_; i++)
-            {
-                // Position in normal bit order
-                uint64_t index1 = (pos - 1) >> 1;
-                uint64_t index2 = (m - pos - 1) >> 1;
+            // Position in normal bit order
+            uint64_t index1 = (pos - 1) >> 1;
+            uint64_t index2 = (m - pos - 1) >> 1;
 
-                // Set the bit-reversed locations
-                matrix_reps_index_map_[i] = safe_cast<size_t>(reverse_bits(index1, logn));
-                matrix_reps_index_map_[slots_ | i] = safe_cast<size_t>(reverse_bits(index2, logn));
+            // Set the bit-reversed locations
+            matrix_reps_index_map_[i] = safe_cast<size_t>(reverse_bits(index1, logn));
+            matrix_reps_index_map_[slots_ | i] = safe_cast<size_t>(reverse_bits(index2, logn));
 
-                // Next primitive root
-                pos *= gen;
-                pos &= (m - 1);
-            }
-        }
-        else
-        {
-            cout << "CKKSEncoder::CKKSEncoder -  57\n";
-            for (size_t i = 0; i < coeff_count; i++)
-            {
-                matrix_reps_index_map_[i] = i;
-            }
+            // Next primitive root
+            pos *= gen;
+            pos &= (m - 1);
         }
 
         // We need 1~(n-1)-th powers of the primitive 2n-th root, m = 2n
@@ -85,9 +73,9 @@ namespace seal
     }
 
     void CKKSEncoder::encode_internal(
-        double value, parms_id_type parms_id, double scale, Plaintext &destination, MemoryPoolHandle pool) const
+        double value, parms_id_type parms_id, double scale, Plaintext &destination,
+        mul_mode_type mul_mode, MemoryPoolHandle pool) const
     {
-        std::cout << "CKKS.cpp - encode_internal - 85\n";
         // Verify parameters.
         auto context_data_ptr = context_.get_context_data(parms_id);
         if (!context_data_ptr)
@@ -117,8 +105,28 @@ namespace seal
             throw invalid_argument("scale out of bounds");
         }
 
-        // Compute the scaled value
-        value *= scale;
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-29
+        Modified By: Dice15
+
+        Compute the scaled value
+
+        Added support for `mul_mode_type` to adjust the value scaling based on the multiplication mode:
+        - `element_wise`: Standard scaling by the `scale` parameter for element-wise multiplication.
+        - `convolution`: Scaling by `scale` and the polynomial degree (`coeff_count`) to account for
+          convolution-based operations, where the values are directly mapped to polynomial coefficients
+          without additional transformations.
+        */
+        if (mul_mode == mul_mode_type::element_wise)
+        {
+            value *= scale; 
+        }
+        else if (mul_mode == mul_mode_type::convolution)
+        {
+            value *= scale; 
+            value *= coeff_count;
+        }
 
         int coeff_bit_count = static_cast<int>(log2(fabs(value))) + 2;
         if (coeff_bit_count >= context_data.total_coeff_modulus_bit_count())
@@ -226,10 +234,9 @@ namespace seal
         destination.scale() = scale;
     }
 
-    void CKKSEncoder::encode_internal(int64_t value, parms_id_type parms_id, Plaintext &destination) const
+    void CKKSEncoder::encode_internal(
+        int64_t value, parms_id_type parms_id, Plaintext &destination, mul_mode_type mul_mode) const
     {
-        std::cout << "CKKS.cpp - encode_internal - 227\n";
-
         // Verify parameters.
         auto context_data_ptr = context_.get_context_data(parms_id);
         if (!context_data_ptr)
@@ -247,6 +254,22 @@ namespace seal
         if (!product_fits_in(coeff_modulus_size, coeff_count))
         {
             throw logic_error("invalid parameters");
+        }
+        
+        /*
+        [MODIFIED]
+        Modification Date: 2024-11-29
+        Modified By: Dice15
+
+        Added support for `mul_mode_type` to adjust the value scaling based on the multiplication mode:
+        - `element_wise`: No scaling is applied; the value remains unchanged.
+        - `convolution`: The value is scaled by the polynomial degree (`coeff_count`) to match the
+          convolution-based multiplication mode, where the values are directly mapped to polynomial
+          coefficients for computation without additional transformations.
+        */
+        if (mul_mode == mul_mode_type::convolution)
+        {
+            value *= coeff_count;
         }
 
         int coeff_bit_count = get_significant_bit_count(static_cast<uint64_t>(llabs(value))) + 2;
