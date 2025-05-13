@@ -147,6 +147,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -234,6 +235,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted1.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -344,6 +346,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted1.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -387,6 +390,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted1.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -870,6 +874,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -1193,6 +1198,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -1421,6 +1427,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (destination.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -1513,6 +1520,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (destination.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -1567,6 +1575,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -1595,6 +1604,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -1622,6 +1632,86 @@ namespace seal
         {
             mod_reduce_to_next_inplace(encrypted, pool);
         }
+    }
+
+            // Modified by Dice15
+    void Evaluator::mod_raise_to_first_inplace(Ciphertext &encrypted, MemoryPoolHandle pool) const
+    {
+        // Assuming at this point encrypted is already validated.
+        auto context_data_ptr = context_.get_context_data(encrypted.parms_id());
+        if (context_data_ptr->parms().scheme() == scheme_type::bfv)
+        {
+            throw invalid_argument("unsupported scheme");
+        }
+        if (context_data_ptr->parms().scheme() == scheme_type::ckks && !encrypted.is_ntt_form())
+        {
+            throw invalid_argument("CKKS encrypted must be in NTT form");
+        }
+        if (context_data_ptr->parms().scheme() == scheme_type::bgv)
+        {
+            throw invalid_argument("unsupported scheme");
+        }
+        if (!pool)
+        {
+            throw invalid_argument("pool is uninitialized");
+        }
+        if (context_data_ptr->parms_id() == context_.key_parms_id())
+        {
+            throw invalid_argument("cannot raise modulus");
+        }
+        if (context_data_ptr->parms_id() == context_.first_parms_id())
+        {
+            throw invalid_argument("cannot raise modulus");
+        }
+
+        // Extract encryption parameters.
+        auto &context_data = *context_data_ptr;
+        auto &parms = context_data.parms();
+        auto rns_ntt_tables = context_data.small_ntt_tables();
+        auto rns_tool = context_data.rns_tool();
+        size_t encrypted_size = encrypted.size();
+        size_t coeff_count = parms.poly_modulus_degree();
+        size_t coeff_modulus_size = parms.coeff_modulus().size();
+
+        auto &first_context_data = *context_.first_context_data();
+        auto &first_parms = first_context_data.parms();
+        auto first_small_ntt_tables = first_context_data.small_ntt_tables();
+        size_t first_coeff_modulus_size = first_parms.coeff_modulus().size();
+
+        Ciphertext encrypted_copy(pool);
+        encrypted_copy = encrypted;
+
+        encrypted.resize(context_, first_context_data.parms_id(), encrypted_size);
+
+        SEAL_ITERATE(iter(encrypted_copy, encrypted), encrypted_size, [&](auto I) {
+
+            SEAL_ALLOCATE_GET_RNS_ITER(temp_mod_up, coeff_count, first_coeff_modulus_size, pool);
+
+            inverse_ntt_negacyclic_harvey_lazy(get<0>(I), coeff_modulus_size, rns_ntt_tables);
+
+            rns_tool->fastbconv_Q_ntt_inplace(get<0>(I), temp_mod_up, pool);
+
+            ntt_negacyclic_harvey(temp_mod_up, first_coeff_modulus_size, first_small_ntt_tables);
+
+            set_poly(temp_mod_up, coeff_count, first_coeff_modulus_size, get<1>(I));
+        });
+
+        /* SEAL_ITERATE(iter(encrypted_copy, encrypted), encrypted_size, [&](auto I) {
+           // SEAL_ALLOCATE_GET_RNS_ITER(get<0>(I), coeff_count, first_coeff_modulus_size, pool);
+           // rns_tool->fastbconv_Q_ntt_inplace(get<1>(I), get<0>(I), first_context_data.small_ntt_tables(), pool);
+
+            SEAL_ALLOCATE_GET_RNS_ITER(temp, coeff_count, first_coeff_modulus_size, pool);
+            rns_tool->fastbconv_Q_ntt_inplace(get<1>(I), get<0>(I), first_context_data.small_ntt_tables(), pool);
+        });
+
+        // Copy result to destination
+        encrypted.resize(context_, first_context_data.parms_id(), encrypted_size);
+        SEAL_ITERATE(iter(encrypted_copy, encrypted), encrypted_size, [&](auto I) {
+            set_poly(get<0>(I), coeff_count, first_coeff_modulus_size, get<1>(I));
+        });*/
+
+        // Set other attributes
+        // encrypted.is_ntt_form() = encrypted.is_ntt_form();
     }
 
     void Evaluator::multiply_many(
@@ -1837,6 +1927,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -1945,6 +2036,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -1991,6 +2083,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -2307,6 +2400,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -2354,6 +2448,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted_ntt.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif
@@ -2458,6 +2553,7 @@ namespace seal
         // Transparent ciphertext output is not allowed.
         if (encrypted.is_transparent())
         {
+            cout << "result ciphertext is transparent" << '\n';
             throw logic_error("result ciphertext is transparent");
         }
 #endif

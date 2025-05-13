@@ -197,6 +197,7 @@ namespace seal
             */
             RNSTool(
                 std::size_t poly_modulus_degree, const RNSBase &coeff_modulus, const Modulus &plain_modulus,
+                const RNSBase& first_coeff_modulus,
                 MemoryPoolHandle pool);
 
             /**
@@ -206,6 +207,12 @@ namespace seal
 
             void divide_and_round_q_last_ntt_inplace(
                 RNSIter input, ConstNTTTablesIter rns_ntt_tables, MemoryPoolHandle pool) const;
+
+            // Modified by Dice15
+            /**
+            Fast base conversion from q to Q
+            */
+            void fastbconv_Q_ntt_inplace(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const;
 
             /**
             Shenoy-Kumaresan conversion from Bsk to q
@@ -320,11 +327,14 @@ namespace seal
             /**
             Generates the pre-computations for the given parameters.
             */
-            void initialize(std::size_t poly_modulus_degree, const RNSBase &q, const Modulus &t);
+            void initialize(std::size_t poly_modulus_degree, const RNSBase &q, const Modulus &t, const RNSBase &Q);
 
             MemoryPoolHandle pool_;
 
             std::size_t coeff_count_ = 0;
+
+            // Modified by Dice15
+            Pointer<RNSBase> base_Q_;
 
             Pointer<RNSBase> base_q_;
 
@@ -335,6 +345,10 @@ namespace seal
             Pointer<RNSBase> base_Bsk_m_tilde_;
 
             Pointer<RNSBase> base_t_gamma_;
+
+            // Modified by Dice15
+            // Base converter: q --> Q
+            Pointer<BaseConverter> base_q_to_Q_conv_;
 
             // Base converter: q --> B_sk
             Pointer<BaseConverter> base_q_to_Bsk_conv_;

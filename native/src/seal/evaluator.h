@@ -657,6 +657,18 @@ namespace seal
             mod_reduce_to_inplace(destination, parms_id, std::move(pool));
         }
 
+        // Modified by Dice15
+        void mod_raise_to_first_inplace(Ciphertext &encrypted, MemoryPoolHandle pool = MemoryManager::GetPool()) const;
+
+        // Modified by Dice15
+        void mod_raise_to_first(
+            const Ciphertext& encrypted, Ciphertext& destination,
+            MemoryPoolHandle pool = MemoryManager::GetPool()) const
+        {
+            destination = encrypted;
+            mod_raise_to_first_inplace(destination, std::move(pool));
+        }
+
         /**
         Multiplies several ciphertexts together. This function computes the product of several ciphertext given as an
         std::vector and stores the result in the destination parameter. The multiplication is done in a depth-optimal

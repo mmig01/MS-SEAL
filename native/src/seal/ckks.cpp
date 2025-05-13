@@ -4,6 +4,9 @@
 #include "seal/ckks.h"
 #include <random>
 #include <stdexcept>
+//
+#include <complex>
+#include <iostream>
 
 using namespace std;
 using namespace seal::util;

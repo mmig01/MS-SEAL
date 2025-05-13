@@ -12,6 +12,7 @@
 #include "seal/util/rns.h"
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 namespace seal
 {
@@ -198,6 +199,9 @@ namespace seal
         parameters from HomomorphicEncryption.org security standard.
         */
         sec_level_type sec_level;
+
+
+        bool using_bootstrapping;
 
     private:
         EncryptionParameterQualifiers()
@@ -491,9 +495,9 @@ namespace seal
         enforced according to HomomorphicEncryption.org security standard
         */
         SEALContext(
-            const EncryptionParameters &parms, bool expand_mod_chain = true,
+            const EncryptionParameters &parms, bool using_bootstrapping = false, bool expand_mod_chain = true,
             sec_level_type sec_level = sec_level_type::tc128)
-            : SEALContext(parms, expand_mod_chain, sec_level, MemoryManager::GetPool())
+            : SEALContext(parms, using_bootstrapping, expand_mod_chain, sec_level, MemoryManager::GetPool())
         {}
 
         /**
@@ -557,6 +561,17 @@ namespace seal
             return (data != context_data_map_.end()) ? data->second : std::shared_ptr<ContextData>{ nullptr };
         }
 
+        // Modified by Dice15
+        /**
+        Returns the ContextData corresponding to the entry encryption parameters
+        that are used for data.
+        */
+        SEAL_NODISCARD inline std::shared_ptr<const ContextData> entry_context_data() const
+        {
+            auto data = context_data_map_.find(entry_parms_id_);
+            return (data != context_data_map_.end()) ? data->second : std::shared_ptr<ContextData>{ nullptr };
+        }
+
         /**
         Returns the ContextData corresponding to the last encryption parameters
         that are used for data.
@@ -611,6 +626,16 @@ namespace seal
             return first_parms_id_;
         }
 
+        // Modified by Dice15
+        /**
+        Returns a parms_id_type corresponding to the entry encryption parameters
+        that are used for data.
+        */
+        SEAL_NODISCARD inline const parms_id_type &entry_parms_id() const noexcept
+        {
+            return entry_parms_id_;
+        }
+
         /**
         Returns a parms_id_type corresponding to the last encryption parameters
         that are used for data.
@@ -618,6 +643,24 @@ namespace seal
         SEAL_NODISCARD inline const parms_id_type &last_parms_id() const noexcept
         {
             return last_parms_id_;
+        }
+
+        // Modified by Dice15
+        /**
+        Returns a bootstrapping depth
+        */
+        SEAL_NODISCARD inline uint64_t bootstrapping_depth() const noexcept
+        {
+            return bootstrapping_depth_;
+        }
+
+        // Modified by Dice15
+        /**
+        Returns a coeff modulus bit count for bootstrapping
+        */
+        SEAL_NODISCARD inline uint64_t coeff_modulus_bit_count_for_bootstrapping() const noexcept
+        {
+            return coeff_modulus_bit_count_for_bootstrapping_;
         }
 
         /**
@@ -645,9 +688,11 @@ namespace seal
         @param[in] pool The MemoryPoolHandle pointing to a valid memory pool
         @throws std::invalid_argument if pool is uninitialized
         */
-        SEALContext(EncryptionParameters parms, bool expand_mod_chain, sec_level_type sec_level, MemoryPoolHandle pool);
+        SEALContext(
+            EncryptionParameters parms, bool using_bootstrapping, bool expand_mod_chain, sec_level_type sec_level,
+            MemoryPoolHandle pool);
 
-        ContextData validate(EncryptionParameters parms);
+        ContextData validate(EncryptionParameters parms, bool enable_mod_raise);
 
         /**
         Create the next context_data by dropping the last element from coeff_modulus.
@@ -663,7 +708,16 @@ namespace seal
 
         parms_id_type first_parms_id_;
 
+        // Modified by Dice15
+        parms_id_type entry_parms_id_;
+
         parms_id_type last_parms_id_;
+        
+        // Modified by Dice15
+        uint64_t bootstrapping_depth_;
+
+        // Modified by Dice15
+        int coeff_modulus_bit_count_for_bootstrapping_;
 
         std::unordered_map<parms_id_type, std::shared_ptr<const ContextData>> context_data_map_{};
 
@@ -671,6 +725,12 @@ namespace seal
         Is HomomorphicEncryption.org security standard enforced?
         */
         sec_level_type sec_level_;
+
+        // Modified by Dice15
+        /**
+        Is bootstrapping enabled by the encryption parameters?
+        */
+        bool using_bootstrapping_;
 
         /**
         Is keyswitching supported by the encryption parameters?

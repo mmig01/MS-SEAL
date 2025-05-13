@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <utility>
+#include <cmath>
 
 using namespace std;
 using namespace seal::util;
@@ -132,7 +133,7 @@ namespace seal
         }
     }
 
-    SEALContext::ContextData SEALContext::validate(EncryptionParameters parms)
+    SEALContext::ContextData SEALContext::validate(EncryptionParameters parms, bool enable_mod_raise)
     {
         ContextData context_data(parms, pool_);
         context_data.qualifiers_.parameter_error = error_type::success;
@@ -207,8 +208,13 @@ namespace seal
         // Assume parameters satisfy desired security level
         context_data.qualifiers_.sec_level = sec_level_;
 
+        // Modified by Dice15
+        // Is bootstrapping supported by the encryption parameters?
+        context_data.qualifiers_.using_bootstrapping = using_bootstrapping_;
+
         // Check if the parameters are secure according to HomomorphicEncryption.org security standard
-        if (context_data.total_coeff_modulus_bit_count_ > CoeffModulus::MaxBitCount(poly_modulus_degree, sec_level_))
+        if (context_data.total_coeff_modulus_bit_count_ - coeff_modulus_bit_count_for_bootstrapping_ >
+            CoeffModulus::MaxBitCount(poly_modulus_degree, sec_level_))
         {
             // Not secure according to HomomorphicEncryption.org security standard
             context_data.qualifiers_.sec_level = sec_level_type::none;
@@ -388,14 +394,27 @@ namespace seal
             return context_data;
         }
 
+        // Modified by Dice15
         // Create RNSTool
         // RNSTool's constructor may fail due to:
         //   (1) auxiliary base being too large
         //   (2) cannot find inverse of punctured products in auxiliary base
         try
         {
-            context_data.rns_tool_ =
-                allocate<RNSTool>(pool_, poly_modulus_degree, *coeff_modulus_base, plain_modulus, pool_);
+            if (enable_mod_raise)
+            {
+                auto &first_context_data = context_data_map_.at(first_parms_id_);
+                auto rns_tool = first_context_data->rns_tool();
+                auto first_coeff_modulus_base = rns_tool->base_q();
+
+                context_data.rns_tool_ = allocate<RNSTool>(
+                    pool_, poly_modulus_degree, *coeff_modulus_base, plain_modulus, *first_coeff_modulus_base, pool_);
+            }
+            else
+            {
+                context_data.rns_tool_ = allocate<RNSTool>(
+                    pool_, poly_modulus_degree, *coeff_modulus_base, plain_modulus, *coeff_modulus_base, pool_);
+            }
         }
         catch (const exception &)
         {
@@ -429,7 +448,7 @@ namespace seal
         auto next_parms_id = next_parms.parms_id();
 
         // Validate next parameters and create next context_data
-        auto next_context_data = validate(next_parms);
+        auto next_context_data = validate(next_parms, prev_parms_id != key_parms_id_);
 
         // If not valid then return zero parms_id
         if (!next_context_data.qualifiers_.parameters_set())
@@ -453,8 +472,9 @@ namespace seal
     }
 
     SEALContext::SEALContext(
-        EncryptionParameters parms, bool expand_mod_chain, sec_level_type sec_level, MemoryPoolHandle pool)
-        : pool_(std::move(pool)), sec_level_(sec_level)
+        EncryptionParameters parms, bool using_bootstrapping, bool expand_mod_chain, sec_level_type sec_level,
+        MemoryPoolHandle pool)
+        : pool_(std::move(pool)), sec_level_(sec_level), using_bootstrapping_(using_bootstrapping)
     {
         if (!pool_)
         {
@@ -470,8 +490,33 @@ namespace seal
         // Validate parameters and add new ContextData to the map
         // Note that this happens even if parameters are not valid
 
+        // Modified by Dice15
+        // Compute the bit count of moduli used for bootstrapping
+        bootstrapping_depth_ = 0;
+        coeff_modulus_bit_count_for_bootstrapping_ = 0;
+        if (using_bootstrapping_)
+        {
+            bootstrapping_depth_ = 23;
+            auto &coeff_modulus = parms.coeff_modulus();
+            size_t coeff_modulus_size = coeff_modulus.size();
+
+            // Check if there are enough moduli to support bootstrapping (depth of bootstrapping + base P + base Q)
+            if (coeff_modulus_size < bootstrapping_depth_ + 2)
+            {
+                throw invalid_argument("Insufficient number of moduli to support bootstrapping.");
+            }
+            else
+            {
+                // Sum the bit count of the last `bootstrapping_depth` moduli (excluding the last one)
+                for (size_t i = coeff_modulus_size - 1 - bootstrapping_depth_; i < coeff_modulus_size - 1; i++)
+                {
+                    coeff_modulus_bit_count_for_bootstrapping_ += (int)log2(coeff_modulus[i].value()) + 1;
+                }
+            }
+        }
+
         // First create key_parms_id_.
-        context_data_map_.emplace(make_pair(parms.parms_id(), make_shared<const ContextData>(validate(parms))));
+        context_data_map_.emplace(make_pair(parms.parms_id(), make_shared<const ContextData>(validate(parms, false))));
         key_parms_id_ = parms.parms_id();
 
         // Then create first_parms_id_ if the parameters are valid and there is
@@ -491,11 +536,16 @@ namespace seal
         // Set last_parms_id_ to point to first_parms_id_
         last_parms_id_ = first_parms_id_;
 
+        // Modified by Dice15
+        // Set entry_parms_id_ to point to first_parms_id_
+        entry_parms_id_ = first_parms_id_;
+
         // Check if keyswitching is available
         using_keyswitching_ = (first_parms_id_ != key_parms_id_);
 
-        // If modulus switching chain is to be created, compute the remaining parameter sets as long as they are valid
-        // to use (i.e., parameters_set() == true).
+        // If modulus switching chain is to be created, compute the remaining parameter sets as long as they are
+        // valid to use (i.e., parameters_set() == true).
+        uint64_t depth_cnt = bootstrapping_depth_;
         if (expand_mod_chain && context_data_map_.at(first_parms_id_)->qualifiers_.parameters_set())
         {
             auto prev_parms_id = first_parms_id_;
@@ -508,6 +558,12 @@ namespace seal
                 }
                 prev_parms_id = next_parms_id;
                 last_parms_id_ = next_parms_id;
+
+                if (depth_cnt)
+                {
+                    entry_parms_id_ = next_parms_id;
+                    depth_cnt--;
+                }     
             }
         }
 

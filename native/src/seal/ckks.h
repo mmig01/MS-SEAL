@@ -203,7 +203,8 @@ namespace seal
             mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
-            encode(values, context_.first_parms_id(), scale, destination, mul_mode, std::move(pool));
+            // Modified by Dice15
+            encode(values, context_.entry_parms_id(), scale, destination, mul_mode, std::move(pool));
         }
 #ifdef SEAL_USE_MSGSL
         /**
@@ -577,6 +578,14 @@ namespace seal
             return slots_;
         }
 
+        /**
+        Returns the number of complex numbers encoded.
+        */
+        SEAL_NODISCARD inline std::shared_ptr<util::ComplexRoots> complex_roots() const noexcept
+        {
+            return complex_roots_;
+        }
+        
     private:
         template <
             typename T, typename = std::enable_if_t<

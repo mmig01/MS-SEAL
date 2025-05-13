@@ -8,6 +8,8 @@
 #include "seal/util/uintarithmod.h"
 #include "seal/util/uintarithsmallmod.h"
 #include <algorithm>
+//
+#include <iostream>
 
 using namespace std;
 
@@ -457,7 +459,7 @@ namespace seal
             SEAL_ITERATE(iter(out, base_change_matrix_, obase_.base()), obase_size, [&](auto I) {
                 SEAL_ITERATE(iter(get<0>(I), temp), count, [&](auto J) {
                     // Compute the base conversion sum modulo obase element
-                    get<0>(J) = dot_product_mod(get<1>(J), get<1>(I).get(), ibase_size, get<2>(I));
+                    get<0>(J) = dot_product_mod(get<1>(J), get<1>(I).get(), ibase_size, get<2>(I));  
                 });
             });
         }
@@ -563,6 +565,7 @@ namespace seal
 
         RNSTool::RNSTool(
             size_t poly_modulus_degree, const RNSBase &coeff_modulus, const Modulus &plain_modulus,
+            const RNSBase &first_coeff_modulus,
             MemoryPoolHandle pool)
             : pool_(std::move(pool))
         {
@@ -572,10 +575,10 @@ namespace seal
                 throw invalid_argument("pool is uninitialized");
             }
 #endif
-            initialize(poly_modulus_degree, coeff_modulus, plain_modulus);
+            initialize(poly_modulus_degree, coeff_modulus, plain_modulus, first_coeff_modulus);
         }
 
-        void RNSTool::initialize(size_t poly_modulus_degree, const RNSBase &q, const Modulus &t)
+        void RNSTool::initialize(size_t poly_modulus_degree, const RNSBase &q, const Modulus &t, const RNSBase &Q)
         {
             // Return if q is out of bounds
             if (q.size() < SEAL_COEFF_MOD_COUNT_MIN || q.size() > SEAL_COEFF_MOD_COUNT_MAX)
@@ -594,7 +597,9 @@ namespace seal
             t_ = t;
             coeff_count_ = poly_modulus_degree;
 
-            // Allocate memory for the bases q, B, Bsk, Bsk U m_tilde, t_gamma
+            // Modified by Dice15
+            // Allocate memory for the bases Q, q, B, Bsk, Bsk U m_tilde, t_gamma
+            size_t base_Q_size = Q.size();
             size_t base_q_size = q.size();
 
             // In some cases we might need to increase the size of the base B by one, namely we require
@@ -634,7 +639,9 @@ namespace seal
             // Set m_tilde_ to a non-prime value
             m_tilde_ = uint64_t(1) << 32;
 
+            // Modified by Dice15
             // Populate the base arrays
+            base_Q_ = allocate<RNSBase>(pool_, Q, pool_);
             base_q_ = allocate<RNSBase>(pool_, q, pool_);
             base_B_ = allocate<RNSBase>(pool_, base_B_primes, pool_);
             base_Bsk_ = allocate<RNSBase>(pool_, base_B_->extend(m_sk_));
@@ -664,6 +671,10 @@ namespace seal
                 // Set up BaseConvTool for q --> {t}
                 base_q_to_t_conv_ = allocate<BaseConverter>(pool_, *base_q_, RNSBase({ t_ }, pool_), pool_);
             }
+
+            // Modified by Dice15
+            // Set up BaseConverter for q --> Q
+            base_q_to_Q_conv_ = allocate<BaseConverter>(pool_, *base_q_, *base_Q_, pool_);
 
             // Set up BaseConverter for q --> Bsk
             base_q_to_Bsk_conv_ = allocate<BaseConverter>(pool_, *base_q_, *base_Bsk_, pool_);
@@ -899,6 +910,61 @@ namespace seal
                 multiply_poly_scalar_coeffmod(get<0>(I), coeff_count_, get<1>(I), get<2>(I), get<0>(I));
             });
         }
+
+        // Modified by Dice15
+        void RNSTool::fastbconv_Q_ntt_inplace(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const
+        {
+#ifdef SEAL_DEBUG
+            if (!input)
+            {
+                throw invalid_argument("input cannot be null");
+            }
+            if (input.poly_modulus_degree() != coeff_count_)
+            {
+                throw invalid_argument("input is not valid for encryption parameters");
+            }
+            if (!rns_ntt_tables)
+            {
+                throw invalid_argument("rns_ntt_tables cannot be null");
+            }
+            if (!pool)
+            {
+                throw invalid_argument("pool is uninitialized");
+            }
+#endif
+            /*
+            Require: Input in base q
+            Ensure: Output in base Q
+            */
+
+            //size_t base_q_size = base_q_->size();
+            //size_t base_Q_size = base_Q_->size();
+
+            //RNSIter input_cpoy(input);
+
+            // Convert to non-NTT form
+            //inverse_ntt_negacyclic_harvey_lazy(input_cpoy, base_q_size, rns_ntt_tables);
+
+            // Fast convert q -> Q
+            //ConstRNSIter const_input(input);
+            base_q_to_Q_conv_->fast_convert_array(input, destination, pool);
+
+
+
+            /* const_input += base_q_size;
+            SEAL_ITERATE(
+                iter(const_input, inv_prod_q_mod_Bsk_, base_Bsk_->base(), destination), base_Bsk_size, [&](auto I) {
+                SEAL_ITERATE(iter(get<0>(I), get<3>(I)), coeff_count_, [&](auto J) {
+
+                    // It is not necessary for the negation to be reduced modulo base_Bsk_elt
+                    get<1>(J) = multiply_uint_mod(get<0>(J) + (get<2>(I).value() - get<1>(J)), get<1>(I), get<2>(I));
+                });
+            });*/
+
+            // Convert to NTT form
+           // ntt_negacyclic_harvey(input, base_Q_size, rns_ntt_tables);
+        }
+
 
         void RNSTool::fastbconv_sk(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const
         {
