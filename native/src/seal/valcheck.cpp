@@ -327,7 +327,6 @@ namespace seal
                 {
                     if (*ptr >= modulus)
                     {
-                        cout << *ptr << ' ' << modulus << '\n';
                         return false;
                     }
                 }

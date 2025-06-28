@@ -200,9 +200,6 @@ namespace seal
         */
         sec_level_type sec_level;
 
-
-        bool using_bootstrapping;
-
     private:
         EncryptionParameterQualifiers()
             : parameter_error(error_type::none), using_fft(false), using_ntt(false), using_batching(false),
@@ -495,9 +492,9 @@ namespace seal
         enforced according to HomomorphicEncryption.org security standard
         */
         SEALContext(
-            const EncryptionParameters &parms, bool using_bootstrapping = false, bool expand_mod_chain = true,
+            const EncryptionParameters &parms, bool expand_mod_chain = true,
             sec_level_type sec_level = sec_level_type::tc128)
-            : SEALContext(parms, using_bootstrapping, expand_mod_chain, sec_level, MemoryManager::GetPool())
+            : SEALContext(parms, expand_mod_chain, sec_level, MemoryManager::GetPool())
         {}
 
         /**
@@ -647,20 +644,21 @@ namespace seal
 
         // Modified by Dice15
         /**
-        Returns a bootstrapping depth
+        Returns a coeff modulus bit count for bootstrapping
         */
-        SEAL_NODISCARD inline uint64_t bootstrapping_depth() const noexcept
+        SEAL_NODISCARD inline int bootstrapping_modulus_bit_count() const noexcept
         {
-            return bootstrapping_depth_;
+            return bootstrapping_modulus_bit_count_;
         }
 
         // Modified by Dice15
         /**
-        Returns a coeff modulus bit count for bootstrapping
+        Returns whether the coefficient modulus supports bootstrapping. In practice,
+        support for bootstrapping is required by CKKSBootstrapper.
         */
-        SEAL_NODISCARD inline uint64_t coeff_modulus_bit_count_for_bootstrapping() const noexcept
+        SEAL_NODISCARD inline bool using_bootstrapping() const noexcept
         {
-            return coeff_modulus_bit_count_for_bootstrapping_;
+            return using_bootstrapping_;
         }
 
         /**
@@ -689,7 +687,7 @@ namespace seal
         @throws std::invalid_argument if pool is uninitialized
         */
         SEALContext(
-            EncryptionParameters parms, bool using_bootstrapping, bool expand_mod_chain, sec_level_type sec_level,
+            EncryptionParameters parms, bool expand_mod_chain, sec_level_type sec_level,
             MemoryPoolHandle pool);
 
         ContextData validate(EncryptionParameters parms, bool enable_mod_raise);
@@ -712,13 +710,10 @@ namespace seal
         parms_id_type entry_parms_id_;
 
         parms_id_type last_parms_id_;
+
+        // Modified by Dice15
+        int bootstrapping_modulus_bit_count_;
         
-        // Modified by Dice15
-        uint64_t bootstrapping_depth_;
-
-        // Modified by Dice15
-        int coeff_modulus_bit_count_for_bootstrapping_;
-
         std::unordered_map<parms_id_type, std::shared_ptr<const ContextData>> context_data_map_{};
 
         /**

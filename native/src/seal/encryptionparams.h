@@ -113,7 +113,7 @@ namespace seal
                 throw std::invalid_argument("unsupported scheme");
             }
 
-            scheme_ = static_cast<scheme_type>(scheme);
+            scheme_ = static_cast<scheme_type>(scheme);   
             compute_parms_id();
         }
 
@@ -144,6 +144,22 @@ namespace seal
         @param[in] assign The EncryptionParameters to move from
         */
         EncryptionParameters &operator=(EncryptionParameters &&assign) = default;
+
+        // Modified by Dice15
+        inline void set_bootstrapping_depth(std::size_t bootstrapping_depth)
+        {
+            // Check that a valid bootstrapping depth is given
+            if (!is_valid_bootstrapping_depth(static_cast<std::uint8_t>(scheme_), bootstrapping_depth))
+            {
+                throw std::invalid_argument("unsupported scheme");
+            }
+
+            // Set the depth
+            bootstrapping_depth_ = bootstrapping_depth;
+
+            // Re-compute the parms_id
+            compute_parms_id();
+        }
 
         /**
         Sets the degree of the polynomial modulus parameter to the specified value.
@@ -274,6 +290,14 @@ namespace seal
             return scheme_;
         }
 
+        /**
+        Returns the encryption scheme type.
+        */
+        SEAL_NODISCARD inline std::size_t bootstrapping_depth() const noexcept
+        {
+            return bootstrapping_depth_;
+        }
+        
         /**
         Returns the degree of the polynomial modulus parameter.
         */
@@ -483,6 +507,49 @@ namespace seal
             return false;
         }
 
+        // Modified by Dice15
+        SEAL_NODISCARD bool is_valid_bootstrapping_depth(std::uint8_t scheme, size_t bootstrapping_depth) const noexcept
+        {
+            // CKKS 스킴만 부트스트래핑을 지원함.
+            switch (scheme)
+            {
+            case static_cast<std::uint8_t>(scheme_type::none):
+            {
+                if (bootstrapping_depth != 0)
+                {
+                    return false;
+                };
+                return true;
+            }
+            case static_cast<std::uint8_t>(scheme_type::bfv):
+            {
+                if (bootstrapping_depth != 0)
+                {
+                    return false;
+                };
+                return true;
+            }
+            case static_cast<std::uint8_t>(scheme_type::ckks):
+            {
+                // TODO: 부트스트래핑 알고리즘이 완성되면 설정 해야함.
+                if (bootstrapping_depth != 0 && bootstrapping_depth < 0)
+                {
+                    return false;
+                }
+                return true;
+            }
+            case static_cast<std::uint8_t>(scheme_type::bgv):
+            {
+                if (bootstrapping_depth != 0)
+                {
+                    return false;
+                }
+                return true;
+            }
+            }
+            return false;
+        }
+
         void compute_parms_id();
 
         void save_members(std::ostream &stream) const;
@@ -492,6 +559,8 @@ namespace seal
         MemoryPoolHandle pool_ = MemoryManager::GetPool();
 
         scheme_type scheme_;
+
+        std::size_t bootstrapping_depth_ = 0;
 
         std::size_t poly_modulus_degree_ = 0;
 

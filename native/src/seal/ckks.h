@@ -20,6 +20,8 @@
 #ifdef SEAL_USE_MSGSL
 #include "gsl/span"
 #endif
+//
+#include <iostream>
 
 namespace seal
 {
@@ -665,6 +667,7 @@ namespace seal
                     // TODO: if values are real, the following values should be set to zero, and multiply results by 2.
                     conj_values[matrix_reps_index_map_[i + slots_]] = std::conj(values[i]);
                 }
+
                 double fix = scale / static_cast<double>(n);
                 fft_handler_.transform_from_rev(
                     conj_values.get(), util::get_power_of_two(n), inv_root_powers_.get(), &fix);
@@ -690,7 +693,6 @@ namespace seal
                     {
                         double coeffd = std::round(conj_values[i].real());
                         bool is_negative = std::signbit(coeffd);
-
                         std::uint64_t coeffu = static_cast<std::uint64_t>(std::fabs(coeffd));
 
                         if (is_negative)
@@ -811,7 +813,7 @@ namespace seal
                     {
                         double coeffd = std::round(complex_values[i].real());
                         bool is_negative = std::signbit(coeffd);
-
+                  
                         std::uint64_t coeffu = static_cast<std::uint64_t>(std::fabs(coeffd));
 
                         if (is_negative)
@@ -972,6 +974,28 @@ namespace seal
                 util::inverse_ntt_negacyclic_harvey(plain_copy.get() + (i * coeff_count), ntt_tables[i]);
             }
 
+            [&]() {
+                auto context_data_ptr = context_.get_context_data(plain.parms_id());
+                auto &parms = context_data_ptr->parms();
+                auto &coeff_modulus = parms.coeff_modulus();
+                size_t coeff_modulus_size = coeff_modulus.size();
+
+                const Plaintext::pt_coeff_type *ptr = plain.data();
+                for (size_t j = 0; j < coeff_modulus_size; j++)
+                {
+                    uint64_t modulus = coeff_modulus[j].value();
+                    size_t poly_modulus_degree = parms.poly_modulus_degree();
+                    for (; poly_modulus_degree--; ptr++)
+                    {
+                        if (poly_modulus_degree < 3)
+                        {
+                            std::cout << *ptr << ' ';
+                        }
+                    }
+                    std::cout << "mod " << modulus << '\n';
+                }
+            };
+
             // CRT-compose the polynomial
             context_data.rns_tool()->base_q()->compose_array(plain_copy.get(), coeff_count, pool);
 
@@ -1032,6 +1056,12 @@ namespace seal
             */
             if (mul_mode == mul_mode_type::element_wise)
             {
+                /* for (std::size_t i = 0; i < slots_; i++)
+                {
+                    destination[i] = from_complex<T>(res[i + slots_]);
+                }
+
+                return;*/
                 fft_handler_.transform_to_rev(res.get(), logn, root_powers_.get());
 
                 for (std::size_t i = 0; i < slots_; i++)
@@ -1043,7 +1073,7 @@ namespace seal
             {
                 for (std::size_t i = 0; i < slots_; i++)
                 {
-                    destination[i] = from_complex<T>(std::complex<double>(res[i].real(), res[i + slots_].real()));
+                    destination[i] = from_complex<T>(res[i]);
                 }
             }
         }

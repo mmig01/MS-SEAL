@@ -209,11 +209,9 @@ namespace seal
         context_data.qualifiers_.sec_level = sec_level_;
 
         // Modified by Dice15
-        // Is bootstrapping supported by the encryption parameters?
-        context_data.qualifiers_.using_bootstrapping = using_bootstrapping_;
-
         // Check if the parameters are secure according to HomomorphicEncryption.org security standard
-        if (context_data.total_coeff_modulus_bit_count_ - coeff_modulus_bit_count_for_bootstrapping_ >
+        /*
+        if (context_data.total_coeff_modulus_bit_count_ - bootstrapping_modulus_bit_count_ >
             CoeffModulus::MaxBitCount(poly_modulus_degree, sec_level_))
         {
             // Not secure according to HomomorphicEncryption.org security standard
@@ -224,7 +222,7 @@ namespace seal
                 context_data.qualifiers_.parameter_error = error_type::invalid_parameters_insecure;
                 return context_data;
             }
-        }
+        }*/
 
         // Set up RNSBase for coeff_modulus
         // RNSBase's constructor may fail due to:
@@ -472,9 +470,9 @@ namespace seal
     }
 
     SEALContext::SEALContext(
-        EncryptionParameters parms, bool using_bootstrapping, bool expand_mod_chain, sec_level_type sec_level,
+        EncryptionParameters parms, bool expand_mod_chain, sec_level_type sec_level,
         MemoryPoolHandle pool)
-        : pool_(std::move(pool)), sec_level_(sec_level), using_bootstrapping_(using_bootstrapping)
+        : pool_(std::move(pool)), sec_level_(sec_level)
     {
         if (!pool_)
         {
@@ -491,26 +489,28 @@ namespace seal
         // Note that this happens even if parameters are not valid
 
         // Modified by Dice15
+        // Set bootstrapping flag
+        using_bootstrapping_ = (parms.bootstrapping_depth() > 0);
+
+        // Modified by Dice15
         // Compute the bit count of moduli used for bootstrapping
-        bootstrapping_depth_ = 0;
-        coeff_modulus_bit_count_for_bootstrapping_ = 0;
+        bootstrapping_modulus_bit_count_ = 0;
         if (using_bootstrapping_)
-        {
-            bootstrapping_depth_ = 23;
+        {   
             auto &coeff_modulus = parms.coeff_modulus();
             size_t coeff_modulus_size = coeff_modulus.size();
 
             // Check if there are enough moduli to support bootstrapping (depth of bootstrapping + base P + base Q)
-            if (coeff_modulus_size < bootstrapping_depth_ + 2)
+            if (coeff_modulus_size < static_cast<size_t>(parms.bootstrapping_depth()) + static_cast<size_t>(2))
             {
                 throw invalid_argument("Insufficient number of moduli to support bootstrapping.");
             }
             else
             {
                 // Sum the bit count of the last `bootstrapping_depth` moduli (excluding the last one)
-                for (size_t i = coeff_modulus_size - 1 - bootstrapping_depth_; i < coeff_modulus_size - 1; i++)
+                for (size_t i = coeff_modulus_size - 1 - parms.bootstrapping_depth(); i < coeff_modulus_size - 1; i++)
                 {
-                    coeff_modulus_bit_count_for_bootstrapping_ += (int)log2(coeff_modulus[i].value()) + 1;
+                    bootstrapping_modulus_bit_count_ += (int)log2(coeff_modulus[i].value()) + 1;
                 }
             }
         }
@@ -543,9 +543,10 @@ namespace seal
         // Check if keyswitching is available
         using_keyswitching_ = (first_parms_id_ != key_parms_id_);
 
+        // Modified by Dice15
         // If modulus switching chain is to be created, compute the remaining parameter sets as long as they are
         // valid to use (i.e., parameters_set() == true).
-        uint64_t depth_cnt = bootstrapping_depth_;
+        uint64_t depth_cnt = parms.bootstrapping_depth();
         if (expand_mod_chain && context_data_map_.at(first_parms_id_)->qualifiers_.parameters_set())
         {
             auto prev_parms_id = first_parms_id_;

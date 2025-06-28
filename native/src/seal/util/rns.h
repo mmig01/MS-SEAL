@@ -212,7 +212,7 @@ namespace seal
             /**
             Fast base conversion from q to Q
             */
-            void fastbconv_Q_ntt_inplace(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const;
+            void fastbconv_Q(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const;
 
             /**
             Shenoy-Kumaresan conversion from Bsk to q

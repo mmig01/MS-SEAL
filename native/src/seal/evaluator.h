@@ -13,6 +13,8 @@
 #include "seal/secretkey.h"
 #include "seal/valcheck.h"
 #include "seal/util/iterator.h"
+#include "seal/ckks.h"
+#include "seal/encryptor.h"
 #include <map>
 #include <stdexcept>
 #include <vector>
@@ -661,7 +663,7 @@ namespace seal
         void mod_raise_to_first_inplace(Ciphertext &encrypted, MemoryPoolHandle pool = MemoryManager::GetPool()) const;
 
         // Modified by Dice15
-        void mod_raise_to_first(
+        inline void mod_raise_to_first(
             const Ciphertext& encrypted, Ciphertext& destination,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
@@ -1375,6 +1377,61 @@ namespace seal
 
         void multiply_plain_ntt(Ciphertext &encrypted_ntt, const Plaintext &plain_ntt) const;
 
+
+
         SEALContext context_;
     };
+
+    // Modified by Dice15
+    class CKKSBootstrapper
+    {
+    public:
+        CKKSBootstrapper(const SEALContext &context);
+
+        static std::vector<int> create_coeff_modulus(
+            std::vector<int> coeff_modulus, int scale_bit, int delta_bit, std::size_t l, std::size_t d_0, std::size_t r,
+            std::size_t &bootstrapping_depth);
+
+        void coeff_to_slot(
+            const Ciphertext &encrypted, const CKKSEncoder &encoder, const Evaluator &evaluator, int scale_bit,
+            int delta_bit, const GaloisKeys &galois_keys, Ciphertext &destination1, Ciphertext &destination2) const;
+
+        void slot_to_coeff(
+            const Ciphertext &encrypted1, const Ciphertext &encrypted2, const CKKSEncoder &encoder,
+            const Evaluator &evaluator, int scale_bit, int delta_bit, const GaloisKeys &galois_keys,
+            Ciphertext &destination) const;
+       
+        void approximate_mod_q_l(
+            const Ciphertext &encrypted1, const Ciphertext &encrypted2, const CKKSEncoder &encoder,
+            const Encryptor &encryptor, const Evaluator &evaluator, const RelinKeys &relin_keys,
+            const GaloisKeys &galois_keys, int delta_bit, std::size_t l, std::size_t d_0, std::size_t r,
+            Ciphertext &destination1, Ciphertext &destination2) const;
+
+        void bootstrapping(
+            const Ciphertext &encrypted, const CKKSEncoder &encoder, const Encryptor &encryptor,
+            const Evaluator &evaluator, const RelinKeys &relin_keys, const GaloisKeys &galois_keys, int scale_bit,
+            int delta_bit, std::size_t l, std::size_t d_0, std::size_t r, Ciphertext &destination) const;
+
+    private:
+        SEALContext context_;
+
+        std::vector<std::vector<std::complex<double_t>>> U0_diag_;
+        
+        std::vector<std::vector<std::complex<double_t>>> U1_diag_;
+
+        std::vector<std::vector<std::complex<double_t>>> U0_t_diag_;
+
+        std::vector<std::vector<std::complex<double_t>>> U1_t_diag_;
+
+        std::vector<std::vector<std::complex<double_t>>> U0_t_c_diag_;
+
+        std::vector<std::vector<std::complex<double_t>>> U1_t_c_diag_;
+
+        double_t PI_ = 3.1415926535897932384626433832795028842;
+    };
 } // namespace seal
+
+
+// 1 + ang*t + 1/2(ang*t)^2
+// t=scale
+// inv_facs[i] * (ang * t)^i * (one)^{d0 - i}

@@ -912,7 +912,7 @@ namespace seal
         }
 
         // Modified by Dice15
-        void RNSTool::fastbconv_Q_ntt_inplace(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const
+        void RNSTool::fastbconv_Q(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const
         {
 #ifdef SEAL_DEBUG
             if (!input)
@@ -932,39 +932,9 @@ namespace seal
                 throw invalid_argument("pool is uninitialized");
             }
 #endif
-            /*
-            Require: Input in base q
-            Ensure: Output in base Q
-            */
-
-            //size_t base_q_size = base_q_->size();
-            //size_t base_Q_size = base_Q_->size();
-
-            //RNSIter input_cpoy(input);
-
-            // Convert to non-NTT form
-            //inverse_ntt_negacyclic_harvey_lazy(input_cpoy, base_q_size, rns_ntt_tables);
-
-            // Fast convert q -> Q
-            //ConstRNSIter const_input(input);
+            // Convert q -> Q
             base_q_to_Q_conv_->fast_convert_array(input, destination, pool);
-
-
-
-            /* const_input += base_q_size;
-            SEAL_ITERATE(
-                iter(const_input, inv_prod_q_mod_Bsk_, base_Bsk_->base(), destination), base_Bsk_size, [&](auto I) {
-                SEAL_ITERATE(iter(get<0>(I), get<3>(I)), coeff_count_, [&](auto J) {
-
-                    // It is not necessary for the negation to be reduced modulo base_Bsk_elt
-                    get<1>(J) = multiply_uint_mod(get<0>(J) + (get<2>(I).value() - get<1>(J)), get<1>(I), get<2>(I));
-                });
-            });*/
-
-            // Convert to NTT form
-           // ntt_negacyclic_harvey(input, base_Q_size, rns_ntt_tables);
         }
-
 
         void RNSTool::fastbconv_sk(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const
         {

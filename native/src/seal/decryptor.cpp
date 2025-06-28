@@ -11,6 +11,7 @@
 #include "seal/util/uintcore.h"
 #include <algorithm>
 #include <stdexcept>
+#include <iostream>
 
 using namespace std;
 using namespace seal::util;
@@ -325,6 +326,8 @@ namespace seal
                         dyadic_product_coeffmod(get<1>(I), get<2>(I), coeff_count, get<3>(I), get<4>(I));
                         // add c_0 to the result; note that destination should be in the same (NTT) form as encrypted
                         add_poly_coeffmod(get<4>(I), get<0>(I), coeff_count, get<3>(I), get<4>(I));
+                        //
+                        //cout << "c_0: " << get<0>(I) << "c_1: " << get<1>(I) << "s: " << get<2>(I) << '\n';
                     });
             }
             else

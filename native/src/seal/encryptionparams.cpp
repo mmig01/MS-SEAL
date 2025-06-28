@@ -23,9 +23,11 @@ namespace seal
             uint64_t poly_modulus_degree64 = static_cast<uint64_t>(poly_modulus_degree_);
             uint64_t coeff_modulus_size64 = static_cast<uint64_t>(coeff_modulus_.size());
             uint8_t scheme = static_cast<uint8_t>(scheme_);
+            uint64_t bootstrapping_depth64 = static_cast<uint64_t>(bootstrapping_depth_);
 
             stream.write(reinterpret_cast<const char *>(&scheme), sizeof(uint8_t));
-            stream.write(reinterpret_cast<const char *>(&poly_modulus_degree64), sizeof(uint64_t));
+            stream.write(reinterpret_cast<const char *>(&bootstrapping_depth64), sizeof(uint64_t));
+            stream.write(reinterpret_cast<const char *>(&poly_modulus_degree64), sizeof(uint64_t));    
             stream.write(reinterpret_cast<const char *>(&coeff_modulus_size64), sizeof(uint64_t));
             for (const auto &mod : coeff_modulus_)
             {
@@ -63,6 +65,11 @@ namespace seal
             // This constructor will throw if scheme is invalid
             EncryptionParameters parms(scheme);
 
+            // Modified by Dice15
+            // Read the bootstrapping_depth
+            uint64_t bootstrapping_depth64 = 0;
+            stream.read(reinterpret_cast<char *>(&bootstrapping_depth64), sizeof(uint64_t));
+
             // Read the poly_modulus_degree
             uint64_t poly_modulus_degree64 = 0;
             stream.read(reinterpret_cast<char *>(&poly_modulus_degree64), sizeof(uint64_t));
@@ -95,9 +102,11 @@ namespace seal
             Modulus plain_modulus;
             plain_modulus.load(stream);
 
+            // Modified by Dice15
             // Supposedly everything worked so set the values of member variables
             parms.set_poly_modulus_degree(safe_cast<size_t>(poly_modulus_degree64));
             parms.set_coeff_modulus(coeff_modulus);
+            parms.set_bootstrapping_depth(safe_cast<size_t>(bootstrapping_depth64));
 
             // Only BFV and BGV uses plain_modulus; set_plain_modulus checks that for
             // other schemes it is zero
