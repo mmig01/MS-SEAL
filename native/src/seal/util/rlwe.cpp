@@ -29,7 +29,7 @@ namespace seal
             RandomToStandardAdapter engine(prng);
             uniform_int_distribution<uint64_t> dist(0, 1);
 
-            size_t h = 64; // coeff_count / 2;
+            size_t h = (coeff_count / 3) * 2;
             vector<size_t> indices(coeff_count, 0);
             vector<bool> sparse(coeff_count, false);
 

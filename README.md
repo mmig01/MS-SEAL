@@ -1,26 +1,128 @@
-# Example Code
+# 1. Abstract
+
+This project provides an implementation of CKKS bootstrapping based on Microsoft SEAL.
+Both sparse and non-sparse secret key variants are supported.
+
+The bootstrapping process consists of the following core steps:
+- Modulus raising (q_l -> Q)
+- Coefficient-to-Slot using BSGS (CTS) 
+- Approximate modulus reduction using Taylor series (EvalMod) 
+- Slot-to-Coefficient using BSGS (STC) 
+
+This code is designed for testing and analyzing the CKKS bootstrapping pipeline with configurable parameters and performance measurements.
+
+</br>
+
+# 2. Test Result
+
+### 1. Using Sparse Secret-key
+**Total Execute Time:** `58.711 seconds`
+#### 🔧 Parameters
+```
+poly modulus degree: 4096
+log(q_0): 60
+log(q_L): 270
+log(p): 60
+log(Q): 1650
+log(scale): 50
+log(delta): 60
+d_0: 15
+r: 11
+bootstrapping_depth: 23
+```
+#### 🔐 ct_origin
+```
+| Encryption parameters :
+|   scheme: CKKS
+|   poly_modulus_degree: 4096
+|   scale: 1.1259e+15 (50 bit)
+|   ciphertext size: 2
+|   coeff_modulus size: 2 (60 50) bits
+
+[ 0.087019893020001, 0.012219522347132, 0.558087017341350, 0.627927660756643, 0.060294743107597, 0.015303185387800, 0.010326633193835, ..., 0.920859662621363, 0.028480650949390, 0.001499326123227, 0.000014956083973, 0.115591626778099, 0.006475732386272, 0.000304616490808 ]
+```
+#### 🔁 ct_boot
+```
+| Encryption parameters :
+|   scheme: CKKS
+|   poly_modulus_degree: 4096
+|   scale: 1.1259e+15 (50 bit)
+|   ciphertext size: 2
+|   coeff_modulus size: 4 (60 50 50 50) bits
+
+[ 0.087255359950414, 0.012153033674326, 0.557874756214800, 0.627937690376493, 0.060284428142563, 0.015326010449825, 0.010358470461282, ..., 0.920860675947827, 0.028468673577842, 0.001505264937569, 0.000009655515811, 0.115570764942649, 0.006492453288252, 0.000285911392471 ]
+```
+
+</br>
+
+---
+### 2. Using non-sparse secret-key
+**Total Execute Time:** `58.711 seconds`
+#### 🔧 Parameters
+```
+poly modulus degree: 4096
+log(q_0): 60
+log(q_L): 270
+log(p): 60
+log(Q): 1770
+log(scale): 50
+log(delta): 60
+d_0: 15
+r: 13
+bootstrapping_depth: 25
+```
+#### 🔐 ct_origin
+```
+| Encryption parameters :
+|   scheme: CKKS
+|   poly_modulus_degree: 4096
+|   scale: 1.1259e+15 (50 bit)
+|   ciphertext size: 2
+|   coeff_modulus size: 2 (60 50) bits
+
+[ 0.154946322722986, 0.009506084596152, 0.004798507971306, 0.413075071219107, 0.667867070071345, 0.005850478029126, 0.591066307154725, ..., 0.168591960474894, 0.191589225163427, 0.978196608502135, 0.000000117384576, 0.227566471573945, 0.855920747945947, 0.163855464797658 ]
+```
+#### 🔁 ct_boot
+```
+| Encryption parameters :
+|   scheme: CKKS
+|   poly_modulus_degree: 4096
+|   scale: 1.1259e+15 (50 bit)
+|   ciphertext size: 2
+|   coeff_modulus size: 4 (60 50 50 50) bits
+
+[ 0.154981414889782, 0.009472785164953, 0.004799962967103, 0.413072354801908, 0.667868961879702, 0.005863059168285, 0.591066253181384, ..., 0.168592275605554, 0.191589135149281, 0.978196239534389, -0.000002704793360, 0.227567981473021, 0.855920464696435, 0.163856940786023 ]
+```
+
+</br>
+
+# 3. Example Code
 
 ```cpp
 #include "ckks_bootstrapping_test.h"
 #include "modules/io/printformat.h"
 #include <random>
+#include <chrono>
 
 using namespace seal;
 using namespace seal::util;
 using namespace std;
+using namespace std::chrono;
 
 int main()
 {
     // Parameters
-    size_t poly_modulus_degree = 4096;
+    size_t poly_modulus_degree = 512;
     size_t slot_count = poly_modulus_degree >> 1;
-    int q0 = 18;
-    int l = 2;
+    int q_0 = 60;
+    int q_1 = 0;
+    int q_l = q_0 + q_1;
+    int p = q_l > 60 ? 60 : q_l;
+    size_t l = 0;
     int scale_bit = 50;
     int delta_bit = 60;
-    int d_0 = 7;
-    int r = 10;
-    int p = (q0 * (l + 1)) > 60 ? 60 : (q0 * (l + 1));
+    size_t d_0 = 15;
+    size_t r = 13;
     size_t bootstrapping_depth = 0;
     double_t scale = pow(2.0, scale_bit);
     double_t delta = pow(2.0, delta_bit);
@@ -30,11 +132,11 @@ int main()
     parms.set_poly_modulus_degree(poly_modulus_degree);
     parms.set_coeff_modulus(CoeffModulus::Create(
         poly_modulus_degree,
-        CKKSBootstrapper::create_coeff_modulus({ q0, q0, q0, scale_bit, scale_bit, scale_bit, p }, scale_bit, delta_bit, l, d_0, r, bootstrapping_depth)
+        CKKSBootstrapper::create_coeff_modulus({ q_0, scale_bit, scale_bit, scale_bit, p }, scale_bit, delta_bit, l, d_0, r, bootstrapping_depth)
     ));
     parms.set_bootstrapping_depth(bootstrapping_depth);
     SEALContext context(parms);
-    print_parameters(context); 
+    print_parameters(context);
     cout << endl;
 
     // Keys
@@ -64,7 +166,7 @@ int main()
     for (size_t i = 0; i < slot_count; i++)
     {
         vector_1.push_back({ static_cast<double_t>(dist(gen)) });
-       // input.push_back(static_cast<double_t>(i));//1073732609 * 1073738753, 134210561 * 134215681, 34359720961*34359724033
+        //vector_1.push_back({ static_cast<double_t>(dist(gen)) * 10 });
     }
     cout << "Input vector: " << endl;
     print_vector(vector_1, 3, 7);
@@ -80,6 +182,11 @@ int main()
     evaluator.square_inplace(cipher_1);
     evaluator.relinearize_inplace(cipher_1, relin_keys);
     evaluator.rescale_to_next_inplace(cipher_1);
+
+    evaluator.square_inplace(cipher_1);
+    evaluator.relinearize_inplace(cipher_1, relin_keys);
+    evaluator.rescale_to_next_inplace(cipher_1);
+
     print_ciphertext(context, cipher_1, decryptor, encoder);
 
     // bootstrap

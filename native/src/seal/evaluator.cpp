@@ -1692,56 +1692,6 @@ namespace seal
             set_poly(mod_up, coeff_count, first_coeff_modulus_size, get<1>(I));
         });
 
-        /* auto new_context_data_ptr = context_.get_context_data(encrypted.parms_id());
-        auto &new_coeff_modulus = new_context_data_ptr->parms().coeff_modulus();
-        size_t new_coeff_modulus_size = new_coeff_modulus.size();
-        Ciphertext::ct_coeff_type *ptr = encrypted.data();
-        auto new_size = encrypted.size();
-
-         for (size_t i = 0; i < new_size; i++)
-        {
-            Ciphertext::ct_coeff_type *fbegin_ptr = ptr;
-            uint64_t fmodulus = new_coeff_modulus[0].value();
-            auto poly_modulus_degree = encrypted.poly_modulus_degree();
-            for (; poly_modulus_degree--; ptr++)
-            {
-                if (i == 1 && poly_modulus_degree < 3)
-                {
-                    cout << *ptr << ' ';
-                }
-            }
-            if (i == 1)
-            {
-                cout << '\n';
-            }
-       
-            for (size_t j = 1; j < new_coeff_modulus_size; j++)
-            {
-                Ciphertext::ct_coeff_type *fptr = fbegin_ptr;
-                uint64_t modulus = new_coeff_modulus[j].value();
-                poly_modulus_degree = encrypted.poly_modulus_degree();
-                for (; poly_modulus_degree--; ptr++, fptr++)
-                {
-                    int64_t signed_val = static_cast<int64_t>(*fptr);
-                    if (signed_val >= static_cast<int64_t>(fmodulus / 2))
-                    {
-                        signed_val -= static_cast<int64_t>(fmodulus);
-                    }
-                    *ptr = static_cast<uint64_t>((signed_val % static_cast<int64_t>(modulus) + modulus) % modulus);
-
-
-                    if (i == 1 && poly_modulus_degree < 3)
-                    {
-                        cout << *ptr << ' ';
-                    }
-                }
-                if (i == 1)
-                {
-                    cout << "mod " << modulus << '\n';
-                }
-            }
-        }*/
-
         transform_to_ntt_inplace(encrypted);
     }
 
@@ -3054,25 +3004,25 @@ namespace seal
         auto add_bit = [&](int bit) {
             if (bit <= 60)
             {
-                extend_coeff_modulus.push_back(delta_bit);
+                extend_coeff_modulus.push_back(bit);
             }
             else if (bit < 80)
             {
                 int base_bit = 40;
                 extend_coeff_modulus.push_back(base_bit);
-                extend_coeff_modulus.push_back(delta_bit - base_bit);
+                extend_coeff_modulus.push_back(bit - base_bit);
             }
             else if (bit < 100)
             {
                 int base_bit = 50;
                 extend_coeff_modulus.push_back(base_bit);
-                extend_coeff_modulus.push_back(delta_bit - base_bit);
+                extend_coeff_modulus.push_back(bit - base_bit);
             }
             else if (bit <= 120)
             {
                 int base_bit = 60;
                 extend_coeff_modulus.push_back(base_bit);
-                extend_coeff_modulus.push_back(delta_bit - base_bit);
+                extend_coeff_modulus.push_back(bit - base_bit);
             }
             else
             {
@@ -3089,7 +3039,7 @@ namespace seal
 
         // (ct_0, ct_1) = { q_l / (2 * PI) } * (ct_0.imag, ct_1.imag).
         // Depth = l + 1.
-        for (size_t i = 0; i < l + 1; i++)
+        for (size_t i = 0; i <= l; i++)
         {
             add_bit(delta_bit);
         }
@@ -3109,12 +3059,16 @@ namespace seal
             add_bit(delta_bit);
         }
 
-        // (term_1_0, term_1_1) = {(2 * PI * i) / (q_l * 2^r)} * (ct_0, ct_1).
-        // Depth = (l + 1) + 1.
-        for (size_t i = 0; i < l + 2; i++)
+        // (term_1_0, term_1_1) = (term_1_0, term_1_1) / q_l.
+        // Depth = l + 1.
+        for (size_t i = 0; i <= l; i++)
         {
-            add_bit(delta_bit);
+            add_bit(coeff_modulus[l - i]);
         }
+
+        // (term_1_0, term_1_1) = {(2 * PI * i) / (2^r)} * (ct_0, ct_1).
+        // Depth = 1.
+        add_bit(delta_bit);
 
         // CTS.
         // Depth = 2.
@@ -3512,6 +3466,13 @@ namespace seal
             // (term_1_0, term_1_1) = {(2 * PI * i) / (2^r)} * (ct_0, ct_1).
             cout << "(term_1_0, term_1_1) = {(2 * PI * i) / (2^r)} * (ct_0, ct_1)" << '\n';
             complex<double_t> angle(0.0, (2.0 * PI_) / static_cast<double_t>(1ULL << r));
+            size_t last_modulus_index = term_1_0.coeff_modulus_size() - (delta_bit <= 60 ? 2ULL : 3ULL);
+            for (size_t i = 0; i <= l; i++)
+            {
+                uint64_t q_i_dot = coeff_modulus[last_modulus_index - i].value();
+                uint64_t q_i = coeff_modulus[i].value();
+                angle *= static_cast<double_t>(q_i_dot) / static_cast<double_t>(q_i);
+            }
             tmp_vt.assign(slot_count, angle * correction_factor(term_1_0));
             encoder.encode(tmp_vt, term_1_0.parms_id(), delta, tmp_pt);
             evaluator.multiply_plain_inplace(term_1_0, tmp_pt);
@@ -3525,17 +3486,14 @@ namespace seal
             cout << "(term_1_0, term_1_1) = (term_1_0, term_1_1) / q_l" << '\n';
             for (size_t i = 0; i <= l; i++)
             {
-                double_t inv_q_i = delta / static_cast<double_t>(coeff_modulus[i].value());
-                tmp_vt.assign(slot_count, inv_q_i * correction_factor(term_1_0));
-                encoder.encode(tmp_vt, term_1_0.parms_id(), 1.0, tmp_pt);
-                tmp_pt.scale() = delta;
-                evaluator.multiply_plain_inplace(term_1_0, tmp_pt);
-                evaluator.multiply_plain_inplace(term_1_1, tmp_pt);
-                rescale(term_1_0);
-                rescale(term_1_1);
-                term_1_0.scale() = delta;
-                term_1_1.scale() = delta;
+                uint64_t last_modulus = coeff_modulus[term_1_0.coeff_modulus_size() - 1ULL - i].value();
+                term_1_0.scale() *= static_cast<double_t>(last_modulus);
+                term_1_1.scale() *= static_cast<double_t>(last_modulus);
+                evaluator.rescale_to_next_inplace(term_1_0);
+                evaluator.rescale_to_next_inplace(term_1_1);
             }
+            term_1_0.scale() = delta;
+            term_1_1.scale() = delta;
         }();
 
         // (P_0_0, P_0_1) = ¥Ò{(1 / k!) * (term_1_0, term_1_1)^k}. Where k = {0, 1, ... , d_0}.
@@ -3684,10 +3642,6 @@ namespace seal
             throw invalid_argument("");
         }
         if (delta_bit < 0 || delta_bit > 120)
-        {
-            throw invalid_argument("");
-        }
-        if (l < 1)
         {
             throw invalid_argument("");
         }
