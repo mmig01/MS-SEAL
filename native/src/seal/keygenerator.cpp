@@ -18,7 +18,8 @@ using namespace seal::util;
 
 namespace seal
 {
-    KeyGenerator::KeyGenerator(const SEALContext &context) : context_(context)
+    KeyGenerator::KeyGenerator(const SEALContext &context, bool use_sparse_secret_key)
+        : context_(context), use_sparse_secret_key_(use_sparse_secret_key)
     {
         // Verify parameters
         if (!context_.parameters_set())
@@ -33,6 +34,7 @@ namespace seal
         generate_sk();
     }
 
+    // Modified by Dice15
     KeyGenerator::KeyGenerator(const SEALContext &context, const SecretKey &secret_key) : context_(context)
     {
         // Verify parameters
@@ -71,7 +73,16 @@ namespace seal
 
             // Generate secret key
             RNSIter secret_key(secret_key_.data().data(), coeff_count);
-            sample_poly_ternary(parms.random_generator()->create(), parms, secret_key);
+
+            // Modified by Dice15
+            if (use_sparse_secret_key_)
+            {
+                sample_poly_ternary_sparse(parms.random_generator()->create(), parms, secret_key);
+            }
+            else
+            {
+                sample_poly_ternary(parms.random_generator()->create(), parms, secret_key);
+            }
 
             // Transform the secret s into NTT representation.
             auto ntt_tables = context_data.small_ntt_tables();

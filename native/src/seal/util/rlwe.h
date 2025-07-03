@@ -25,6 +25,19 @@ namespace seal
         void sample_poly_ternary(
             std::shared_ptr<UniformRandomGenerator> prng, const EncryptionParameters &parms,
             std::uint64_t *destination);
+        
+        // Modified by Dice15
+        /**
+        Generate a sparse balanced ternary polynomial and store in RNS representation.
+
+        @param[in] prng A uniform random generator
+        @param[in] parms EncryptionParameters used to parameterize an RNS polynomial
+        @param[in] h Number of non-zero coefficients (Hamming weight)
+        @param[out] destination Allocated space to store a random polynomial
+        */
+        void sample_poly_ternary_sparse(
+            std::shared_ptr<UniformRandomGenerator> prng, const EncryptionParameters &parms,
+            std::uint64_t *destination);
 
         /**
         Generate a polynomial from a normal distribution and store in RNS representation.

@@ -102,45 +102,41 @@ bootstrapping_depth: 25
 #include "ckks_bootstrapping_test.h"
 #include "modules/io/printformat.h"
 #include <random>
-#include <chrono>
 
 using namespace seal;
 using namespace seal::util;
 using namespace std;
-using namespace std::chrono;
 
 int main()
 {
     // Parameters
-    size_t poly_modulus_degree = 512;
+    size_t poly_modulus_degree = 8192;
     size_t slot_count = poly_modulus_degree >> 1;
     int q_0 = 60;
     int q_1 = 0;
     int q_l = q_0 + q_1;
     int p = q_l > 60 ? 60 : q_l;
     size_t l = 0;
-    int scale_bit = 50;
+    int scale_bit = 49;
     int delta_bit = 60;
     size_t d_0 = 15;
-    size_t r = 13;
-    size_t bootstrapping_depth = 0;
+    size_t r = 11;
+    size_t bootstrapping_depth = CKKSBootstrapper::get_bootstrap_depth(l, d_0, r);
+    vector<int> coeff_modulus = CKKSBootstrapper::create_coeff_modulus({ q_0, scale_bit, scale_bit, p }, scale_bit, delta_bit, l, d_0, r);
     double_t scale = pow(2.0, scale_bit);
     double_t delta = pow(2.0, delta_bit);
 
     // CKKS context
     EncryptionParameters parms(scheme_type::ckks);
     parms.set_poly_modulus_degree(poly_modulus_degree);
-    parms.set_coeff_modulus(CoeffModulus::Create(
-        poly_modulus_degree,
-        CKKSBootstrapper::create_coeff_modulus({ q_0, scale_bit, scale_bit, scale_bit, p }, scale_bit, delta_bit, l, d_0, r, bootstrapping_depth)
-    ));
     parms.set_bootstrapping_depth(bootstrapping_depth);
-    SEALContext context(parms);
+    parms.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree, coeff_modulus));
+    SEALContext context(parms, true, sec_level_type::tc128);
     print_parameters(context);
     cout << endl;
-
+    
     // Keys
-    KeyGenerator keygen(context);
+    KeyGenerator keygen(context, true);   // true: use sparse key, false or omitted: use non-sparse key
     SecretKey secret_key = keygen.secret_key();
     PublicKey public_key;
     keygen.create_public_key(public_key);
@@ -177,7 +173,7 @@ int main()
     Ciphertext cipher_1, cipher_res;
     encryptor.encrypt(plain_1, cipher_1);
     print_ciphertext(context, cipher_1, decryptor, encoder);
-
+    
     // evaluate
     evaluator.square_inplace(cipher_1);
     evaluator.relinearize_inplace(cipher_1, relin_keys);

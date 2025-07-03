@@ -210,8 +210,7 @@ namespace seal
 
         // Modified by Dice15
         // Check if the parameters are secure according to HomomorphicEncryption.org security standard
-        /*
-        if (context_data.total_coeff_modulus_bit_count_ - bootstrapping_modulus_bit_count_ >
+        if (context_data.total_coeff_modulus_bit_count_ - bootstrapping_coeff_modulus_bit_count_ >
             CoeffModulus::MaxBitCount(poly_modulus_degree, sec_level_))
         {
             // Not secure according to HomomorphicEncryption.org security standard
@@ -222,7 +221,7 @@ namespace seal
                 context_data.qualifiers_.parameter_error = error_type::invalid_parameters_insecure;
                 return context_data;
             }
-        }*/
+        }
 
         // Set up RNSBase for coeff_modulus
         // RNSBase's constructor may fail due to:
@@ -494,7 +493,7 @@ namespace seal
 
         // Modified by Dice15
         // Compute the bit count of moduli used for bootstrapping
-        bootstrapping_modulus_bit_count_ = 0;
+        bootstrapping_coeff_modulus_bit_count_ = 0;
         if (using_bootstrapping_)
         {   
             auto &coeff_modulus = parms.coeff_modulus();
@@ -510,7 +509,7 @@ namespace seal
                 // Sum the bit count of the last `bootstrapping_depth` moduli (excluding the last one)
                 for (size_t i = coeff_modulus_size - 1 - parms.bootstrapping_depth(); i < coeff_modulus_size - 1; i++)
                 {
-                    bootstrapping_modulus_bit_count_ += (int)log2(coeff_modulus[i].value()) + 1;
+                    bootstrapping_coeff_modulus_bit_count_ += (int)log2(coeff_modulus[i].value()) + 1;
                 }
             }
         }

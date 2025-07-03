@@ -646,9 +646,9 @@ namespace seal
         /**
         Returns a coeff modulus bit count for bootstrapping
         */
-        SEAL_NODISCARD inline int bootstrapping_modulus_bit_count() const noexcept
+        SEAL_NODISCARD inline int bootstrapping_coeff_modulus_bit_count() const noexcept
         {
-            return bootstrapping_modulus_bit_count_;
+            return bootstrapping_coeff_modulus_bit_count_;
         }
 
         // Modified by Dice15
@@ -712,7 +712,7 @@ namespace seal
         parms_id_type last_parms_id_;
 
         // Modified by Dice15
-        int bootstrapping_modulus_bit_count_;
+        int bootstrapping_coeff_modulus_bit_count_;
         
         std::unordered_map<parms_id_type, std::shared_ptr<const ContextData>> context_data_map_{};
 

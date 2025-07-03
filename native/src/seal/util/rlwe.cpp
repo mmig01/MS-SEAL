@@ -25,70 +25,49 @@ namespace seal
             auto coeff_modulus = parms.coeff_modulus();
             size_t coeff_modulus_size = coeff_modulus.size();
             size_t coeff_count = parms.poly_modulus_degree();
-            
+
+            RandomToStandardAdapter engine(prng);
+            uniform_int_distribution<uint64_t> dist(0, 2);
+
+            SEAL_ITERATE(iter(destination), coeff_count, [&](auto &I) {
+                uint64_t rand = dist(engine);
+                uint64_t flag = static_cast<uint64_t>(-static_cast<int64_t>(rand == 0));
+                SEAL_ITERATE(
+                    iter(StrideIter<uint64_t *>(&I, coeff_count), coeff_modulus), coeff_modulus_size,
+                    [&](auto J) { *get<0>(J) = rand + (flag & get<1>(J).value()) - 1; });
+            });
+        }
+        
+        // Modified by Dice15
+        void sample_poly_ternary_sparse(
+            shared_ptr<UniformRandomGenerator> prng, const EncryptionParameters &parms, uint64_t *destination)
+        {
+            auto coeff_modulus = parms.coeff_modulus();
+            size_t coeff_modulus_size = coeff_modulus.size();
+            size_t coeff_count = parms.poly_modulus_degree();
+
             RandomToStandardAdapter engine(prng);
             uniform_int_distribution<uint64_t> dist(0, 1);
 
-            size_t h = (coeff_count / 3) * 2;
-            vector<size_t> indices(coeff_count, 0);
+            vector<size_t> indices(coeff_count);
+            iota(indices.begin(), indices.end(), 0);
+            shuffle(indices.begin(), indices.end(), mt19937(random_device{}()));
+
             vector<bool> sparse(coeff_count, false);
-
-            for (size_t i = 0; i < coeff_count; i++)
-            {
-                indices[i] = i;
-            }
-
-            random_device rd;
-            mt19937 gen(rd());
-            shuffle(indices.begin(), indices.end(), gen);
-
-            for (size_t i = 0; i < h; i++)
+            for (size_t i = 0; i < 64; ++i)
             {
                 sparse[indices[i]] = true;
             }
-        
-            size_t rep = 0;
-            size_t index = 0;
-            size_t cnt_0 = 0;
-            size_t cnt_1 = 0;
-            size_t cnt_2 = 0;
+
+            size_t idx = 0;
             SEAL_ITERATE(iter(destination), coeff_count, [&](auto &I) {
-                uint64_t rand = 1;
-
-                if (sparse[index++] == true)
-                {
-                    rand = dist(engine) ? 2ULL : 0ULL;
-                }
-
-                if (rand == 0)
-                {
-                    cnt_0++;
-                }
-                else if (rand == 1)
-                {
-                    cnt_1++;
-                }
-                else if (rand == 2)
-                {
-                    cnt_2++;
-                }
-
+                uint64_t rand = sparse[idx++] ? (dist(engine) ? 2ULL : 0ULL) : 1ULL;
                 uint64_t flag = static_cast<uint64_t>(-static_cast<int64_t>(rand == 0));
-                rep = 0;
-                SEAL_ITERATE(
-                    iter(StrideIter<uint64_t *>(&I, coeff_count), coeff_modulus), coeff_modulus_size, [&](auto J) {
-                        *get<0>(J) = rand + (flag & get<1>(J).value()) - 1;
-                        if (rep++ < 1)
-                        {
-                           // cout << *get<0>(J) << " ";
-                        }
-                    });
-            });
 
-            cout << "secret key info:" << '\n';
-            cout << "count of -1: " << cnt_0 << '\n';
-            cout << "count of 0: " << cnt_1 << '\n';
-            cout << "count of +1: " << cnt_2 << '\n';
+                SEAL_ITERATE(
+                    iter(StrideIter<uint64_t *>(&I, coeff_count), coeff_modulus), coeff_modulus_size,
+                    [&](auto J) { *get<0>(J) = rand + (flag & get<1>(J).value()) - 1; });
+            });
         }
 
         void sample_poly_normal(

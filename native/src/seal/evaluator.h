@@ -1388,10 +1388,18 @@ namespace seal
     public:
         CKKSBootstrapper(const SEALContext &context);
 
-        static std::vector<int> create_coeff_modulus(
-            std::vector<int> coeff_modulus, int scale_bit, int delta_bit, std::size_t l, std::size_t d_0, std::size_t r,
-            std::size_t &bootstrapping_depth);
+        static size_t get_bootstrap_depth(size_t l, size_t d_0, size_t r);
 
+        static std::vector<int> create_coeff_modulus(
+            std::vector<int> coeff_modulus, int scale_bit, int delta_bit, std::size_t l, std::size_t d_0,
+            std::size_t r);
+
+        void bootstrapping(
+            const Ciphertext &encrypted, const CKKSEncoder &encoder, const Encryptor &encryptor,
+            const Evaluator &evaluator, const RelinKeys &relin_keys, const GaloisKeys &galois_keys, int scale_bit,
+            int delta_bit, std::size_t l, std::size_t d_0, std::size_t r, Ciphertext &destination) const;
+
+    private:
         void coeff_to_slot(
             const Ciphertext &encrypted, const CKKSEncoder &encoder, const Evaluator &evaluator, int scale_bit,
             int delta_bit, const GaloisKeys &galois_keys, Ciphertext &destination1, Ciphertext &destination2) const;
@@ -1400,19 +1408,19 @@ namespace seal
             const Ciphertext &encrypted1, const Ciphertext &encrypted2, const CKKSEncoder &encoder,
             const Evaluator &evaluator, int scale_bit, int delta_bit, const GaloisKeys &galois_keys,
             Ciphertext &destination) const;
-       
+
         void approximate_mod_q_l(
             const Ciphertext &encrypted1, const Ciphertext &encrypted2, const CKKSEncoder &encoder,
             const Encryptor &encryptor, const Evaluator &evaluator, const RelinKeys &relin_keys,
             const GaloisKeys &galois_keys, int delta_bit, std::size_t l, std::size_t d_0, std::size_t r,
             Ciphertext &destination1, Ciphertext &destination2) const;
 
-        void bootstrapping(
-            const Ciphertext &encrypted, const CKKSEncoder &encoder, const Encryptor &encryptor,
-            const Evaluator &evaluator, const RelinKeys &relin_keys, const GaloisKeys &galois_keys, int scale_bit,
-            int delta_bit, std::size_t l, std::size_t d_0, std::size_t r, Ciphertext &destination) const;
+        double_t dynamic_correction_factor(
+            const Ciphertext &cipher, double_t curr_scale, double_t target_scale, int rescale_bit,
+            size_t nth_rescale) const;
 
-    private:
+        void dynamic_rescale_inplace(Ciphertext &cipher, const Evaluator &evaluator, int rescale_bit) const;
+
         SEALContext context_;
 
         std::vector<std::vector<std::complex<double_t>>> U0_diag_;
@@ -1430,8 +1438,3 @@ namespace seal
         double_t PI_ = 3.1415926535897932384626433832795028842;
     };
 } // namespace seal
-
-
-// 1 + ang*t + 1/2(ang*t)^2
-// t=scale
-// inv_facs[i] * (ang * t)^i * (one)^{d0 - i}

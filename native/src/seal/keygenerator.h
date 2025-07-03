@@ -30,13 +30,14 @@ namespace seal
     class KeyGenerator
     {
     public:
+        // Modified by Dice15
         /**
         Creates a KeyGenerator initialized with the specified SEALContext.
 
         @param[in] context The SEALContext
         @throws std::invalid_argument if the encryption parameters are not valid
         */
-        KeyGenerator(const SEALContext &context);
+        KeyGenerator(const SEALContext &context, bool use_sparse_secret_key = false);
 
         /**
         Creates an KeyGenerator instance initialized with the specified SEALContext
@@ -366,6 +367,8 @@ namespace seal
         MemoryPoolHandle pool_ = MemoryManager::GetPool(mm_prof_opt::mm_force_new, true);
 
         SEALContext context_;
+
+        bool use_sparse_secret_key_;
 
         SecretKey secret_key_;
 

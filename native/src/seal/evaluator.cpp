@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license.
 
 #include "seal/evaluator.h"
@@ -15,6 +15,7 @@
 
 //
 #include <iostream>
+#include <iomanip> 
 
 using namespace std;
 using namespace seal::util;
@@ -2983,24 +2984,54 @@ namespace seal
         }
     }
 
+    size_t CKKSBootstrapper::get_bootstrap_depth(size_t l, size_t d_0, size_t r)
+    {
+        if (d_0 < 1)
+        {
+            throw std::invalid_argument("d_0 must be at least 1.");
+        }
+
+        /*  Depth ────────────────────────────────────────────
+            ┌─ 2                           : Slot-to-Coeff (STC)
+            ├─ (l + 1)                    : Multiply by q_l / (2π)
+            ├─ r                            : Exponentiation (P₀)^(2^r)
+            ├─ ⌊log2(d_0)⌋ + 2    : Taylor expansion
+            ├─ (l + 1)                    : Division by q_l
+            ├─ 1                           : Final constant multiplication
+            └─ 0                           : Coeff-to-Slot (CTS)
+            ────────────────────────────────────────────────
+        */
+
+        size_t taylor_cnt = static_cast<size_t>(std::log2(d_0)) + 2;
+
+        return 2 + (l + 1) + r + taylor_cnt + (l + 1) + 1;
+    }
+
     vector<int> CKKSBootstrapper::create_coeff_modulus(
-        vector<int> coeff_modulus, int scale_bit, int delta_bit, size_t l, size_t d_0, size_t r,
-        size_t &bootstrapping_depth)
+        vector<int> coeff_modulus, int scale_bit, int delta_bit, size_t l, size_t d_0, size_t r)
     {
         // Verify parameters.
         if (coeff_modulus.size() < 2)
         {
-            throw invalid_argument("");
+            throw invalid_argument("coeff_modulus must contain at least two primes.");
         }
-        if (coeff_modulus.size() < (l + 1) + 1)
+        if (delta_bit < 0 || delta_bit > 120)
         {
-            throw invalid_argument("");
+            throw invalid_argument("delta_bit must be in the range [0, 120].");
+        }
+        if (coeff_modulus.size() < l + 1)
+        {
+            throw invalid_argument("coeff_modulus must contain at least (l + 1) primes to support bootstrapping.");
+        }
+        if (d_0 < 1)
+        {
+            throw invalid_argument("d_0 must be at least 1.");
         }
 
         // Extend coefficient modulus.
         vector<int> extend_coeff_modulus(coeff_modulus.begin(), coeff_modulus.end() - 1);
 
-        // 
+        // Add a modulus' bit.
         auto add_bit = [&](int bit) {
             if (bit <= 60)
             {
@@ -3026,7 +3057,7 @@ namespace seal
             }
             else
             {
-                throw invalid_argument("");
+                throw invalid_argument("Bit-length for modulus primes must not exceed 120.");
             }
         };
 
@@ -3051,7 +3082,7 @@ namespace seal
             add_bit(delta_bit);
         }
 
-        // (P_0_0, P_0_1) = ��{(1 / k!) * (term_1_0, term_1_1)^k}. Where k = {0, 1, ... , d_0}.
+        // (P_0_0, P_0_1) = Σ{(1 / k!) * (term_1_0, term_1_1)^k}. Where k = {0, 1, ... , d_0}.
         // Depth = floor(log2(r)) + 2.
         size_t taylor_cnt = static_cast<size_t>(log2(d_0)) + 2;
         for (size_t i = 0; i < taylor_cnt; i++)
@@ -3070,23 +3101,67 @@ namespace seal
         // Depth = 1.
         add_bit(delta_bit);
 
-        // CTS.
-        // Depth = 2.
-        for (size_t i = 0; i < 2; i++)
-        {
-            add_bit(delta_bit);
-        }
-
         // Add p.
         extend_coeff_modulus.push_back(coeff_modulus.back());
 
-        // Calculate bootstrapping depth.
-        bootstrapping_depth = extend_coeff_modulus.size() - coeff_modulus.size();
-
-        // TODO: �ּ� ��Ʈ ��Ʈ���� dpeth ���� üũ
-
         return extend_coeff_modulus;
     };
+    
+    void CKKSBootstrapper::bootstrapping(
+        const Ciphertext &encrypted, const CKKSEncoder &encoder, const Encryptor &encryptor, const Evaluator &evaluator,
+        const RelinKeys &relin_keys, const GaloisKeys &galois_keys, int scale_bit, int delta_bit, std::size_t l,
+        std::size_t d_0, std::size_t r, Ciphertext &destination) const
+    {
+        // Verify parameters.
+        if (!is_metadata_valid_for(encrypted, context_) || !is_buffer_valid(encrypted))
+        {
+            throw invalid_argument("encrypted is not valid for encryption parameters");
+        }
+        if (!context_.using_bootstrapping())
+        {
+            throw logic_error("bootstrapping is not supported by the context");
+        }
+        if (context_.first_context_data()->parms().bootstrapping_depth() != get_bootstrap_depth(l, d_0, r))
+        {
+            throw logic_error("The context's bootstrapping_depth does not match the depth implied by (l, d_0, r).");
+        }
+        if (scale_bit < 0 || scale_bit > 120)
+        {
+            throw invalid_argument("scale_bit must be in the range [0, 120].");
+        }
+        if (delta_bit < 0 || delta_bit > 120)
+        {
+            throw invalid_argument("delta_bit must be in the range [0, 120].");
+        }
+        if (d_0 < 1)
+        {
+            throw invalid_argument("d_0 must be at least 1.");
+        }
+
+        // Copy
+        Ciphertext encrypted_copy = encrypted;
+        Ciphertext ct_0;
+        Ciphertext ct_1;
+
+        // Modulus down to q_l.
+        while (encrypted_copy.coeff_modulus_size() > l + 1)
+        {
+            evaluator.mod_reduce_to_next_inplace(encrypted_copy);
+        }
+
+        // Modulus up to Q_0.
+        evaluator.mod_raise_to_first_inplace(encrypted_copy);
+
+        // CTS.
+        coeff_to_slot(encrypted_copy, encoder, evaluator, scale_bit, delta_bit, galois_keys, ct_0, ct_1);
+
+        // Mod q_l.
+        approximate_mod_q_l(
+            ct_0, ct_1, encoder, encryptor, evaluator, relin_keys, galois_keys, delta_bit, l, d_0, r, ct_0, ct_1);
+
+        // STC.
+        slot_to_coeff(ct_0, ct_1, encoder, evaluator, scale_bit, delta_bit, galois_keys, destination);
+    }
 
     void CKKSBootstrapper::coeff_to_slot(
         const Ciphertext &encrypted, const CKKSEncoder &encoder, const Evaluator &evaluator, int scale_bit,
@@ -3101,6 +3176,14 @@ namespace seal
         {
             throw logic_error("bootstrapping is not supported by the context");
         }
+        if (scale_bit < 0 || scale_bit > 120)
+        {
+            throw invalid_argument("scale_bit must be in the range [0, 120].");
+        }
+        if (delta_bit < 0 || delta_bit > 120)
+        {
+            throw invalid_argument("delta_bit must be in the range [0, 120].");
+        }
 
         // Extract encryption parameters.
         auto &first_parms = context_.first_context_data()->parms();
@@ -3111,39 +3194,6 @@ namespace seal
         uint64_t gs = slot_count / bs;
         double_t scale = pow(2, scale_bit);
         double_t delta = pow(2, delta_bit);
-
-        // Dynamic correction factor
-        auto correction_factor = [&](Ciphertext &cipher) {
-            double_t factor = 1.0;
-
-            if (cipher.scale() != scale)
-            {
-                factor = scale / cipher.scale();
-            }
-
-            if (delta_bit > 60)
-            {
-                factor *= (static_cast<double_t>(coeff_modulus[cipher.coeff_modulus_size() - 1ULL].value()) *
-                           static_cast<double_t>(coeff_modulus[cipher.coeff_modulus_size() - 2ULL].value())) /
-                          delta;
-            }
-            else
-            {
-                factor *= static_cast<double_t>(coeff_modulus[cipher.coeff_modulus_size() - 1ULL].value()) / delta;
-            }
-
-            return factor;
-        };
-
-        // Dynamic rescale function 
-        auto rescale = [&](Ciphertext &cipher) {
-            evaluator.rescale_to_next_inplace(cipher);
-
-            if (delta_bit > 60)
-            {
-                evaluator.rescale_to_next_inplace(cipher);
-            }
-        };
 
         // CTS: Enc(z) -> (Enc(z_0), Enc(z_1)).
         // Where z is message vector of n/2 dimension, concat(z_0, z_1) is message coefficient of n degree.
@@ -3177,6 +3227,13 @@ namespace seal
             evaluator.rotate_vector(z_c_rot[0], static_cast<int>(i), galois_keys, z_c_rot[i]);
         }
 
+        // Corrected scale
+        double_t corrected_scale = delta / static_cast<double_t>(n);
+        if (encrypted.scale() != scale)
+        {
+            corrected_scale *= (scale / encrypted.scale());
+        }
+
         // Linear transformation.
         for (size_t j = 0; j < gs; j++)
         {
@@ -3187,10 +3244,10 @@ namespace seal
             {
                 size_t k = (j * bs) + i;
                 cout << "CTS: " << k << '\n';
-                encoder.encode(U0_t_diag_[k], z_rot[i].parms_id(), delta, U0_t_diag_i);
-                encoder.encode(U1_t_diag_[k], z_rot[i].parms_id(), delta, U1_t_diag_i);
-                encoder.encode(U0_t_c_diag_[k], z_rot[i].parms_id(), delta, U0_t_c_diag_i);
-                encoder.encode(U1_t_c_diag_[k], z_rot[i].parms_id(), delta, U1_t_c_diag_i);
+                encoder.encode(U0_t_diag_[k], z_rot[i].parms_id(), corrected_scale, U0_t_diag_i);
+                encoder.encode(U1_t_diag_[k], z_rot[i].parms_id(), corrected_scale, U1_t_diag_i);
+                encoder.encode(U0_t_c_diag_[k], z_rot[i].parms_id(), corrected_scale, U0_t_c_diag_i);
+                encoder.encode(U1_t_c_diag_[k], z_rot[i].parms_id(), corrected_scale, U1_t_c_diag_i);
 
                 // z_0 += conj(U0^t) * z.
                 // z_1 += conj(U1^t) * z.
@@ -3214,9 +3271,9 @@ namespace seal
                 evaluator.add_inplace(z_0_bs, tmp_ct_0);
                 evaluator.add_inplace(z_1_bs, tmp_ct_1);
             }
-            
+
             size_t gs_rot = bs * j;
-            if (j==0)
+            if (j == 0)
             {
                 evaluator.rotate_vector(z_0_bs, static_cast<int>(gs_rot), galois_keys, z_0);
                 evaluator.rotate_vector(z_1_bs, static_cast<int>(gs_rot), galois_keys, z_1);
@@ -3229,18 +3286,7 @@ namespace seal
                 evaluator.add_inplace(z_1, z_1_bs);
             }
         }
-        
-        // Rescale
-        rescale(z_0);
-        rescale(z_1);
 
-        // Scaling
-        tmp_vt.assign(slot_count, (delta / static_cast<double_t>(n)) * correction_factor(z_0));
-        encoder.encode(tmp_vt, z_0.parms_id(), delta, tmp_pt);
-        evaluator.multiply_plain_inplace(z_0, tmp_pt);
-        evaluator.multiply_plain_inplace(z_1, tmp_pt);
-        rescale(z_0);
-        rescale(z_1);
         z_0.scale() = delta;
         z_1.scale() = delta;
 
@@ -3275,6 +3321,14 @@ namespace seal
         {
             throw invalid_argument("encrypted1 and encrypted2 scale mismatch");
         }
+        if (scale_bit < 0 || scale_bit > 120)
+        {
+            throw invalid_argument("scale_bit must be in the range [0, 120].");
+        }
+        if (delta_bit < 0 || delta_bit > 120)
+        {
+            throw invalid_argument("delta_bit must be in the range [0, 120].");
+        }
 
         // Extract encryption parameters.
         auto &first_parms = context_.first_context_data()->parms();
@@ -3285,39 +3339,6 @@ namespace seal
         uint64_t gs = slot_count / bs;
         double_t scale = pow(2, scale_bit);
         double_t delta = pow(2, delta_bit);
-
-        // Dynamic correction factor
-        auto correction_factor = [&](Ciphertext &cipher) {
-            double_t factor = 1.0;
-
-            if (cipher.scale() != delta)
-            {
-                factor = delta / cipher.scale();
-            }
-
-            if (delta_bit > 60)
-            {
-                factor *= (static_cast<double_t>(coeff_modulus[cipher.coeff_modulus_size() - 1ULL].value()) *
-                           static_cast<double_t>(coeff_modulus[cipher.coeff_modulus_size() - 2ULL].value())) /
-                          delta;
-            }
-            else
-            {
-                factor *= static_cast<double_t>(coeff_modulus[cipher.coeff_modulus_size() - 1ULL].value()) / delta;
-            }
-
-            return factor;
-        };
-
-        // Dynamic rescale function
-        auto rescale = [&](Ciphertext &cipher) {
-            evaluator.rescale_to_next_inplace(cipher);
-
-            if (delta_bit > 60)
-            {
-                evaluator.rescale_to_next_inplace(cipher);
-            }
-        };
 
         // STC: (Enc(z_0), Enc(z_1)) -> Enc(z).
         // Where z is message vector of n/2 dimension, concat(z_0, z_1) is message coefficient of n degree.
@@ -3344,6 +3365,11 @@ namespace seal
             evaluator.rotate_vector(z_0_rot[0], static_cast<int>(i), galois_keys, z_0_rot[i]);
             evaluator.rotate_vector(z_1_rot[0], static_cast<int>(i), galois_keys, z_1_rot[i]);
         }
+        
+        // Corrected scale
+        double_t corrected_scale = delta;
+        corrected_scale *= dynamic_correction_factor(encrypted1, delta, delta, delta_bit, 0);
+        corrected_scale *= dynamic_correction_factor(encrypted1, delta, delta, delta_bit, 1);
 
         // Linear transformation.
         for (size_t j = 0; j < gs; j++)
@@ -3354,8 +3380,8 @@ namespace seal
             {
                 size_t k = (j * bs) + i;
                 cout << "STC: " << k << '\n';
-                encoder.encode(U0_diag_[k], z_0_rot[i].parms_id(), delta, U0_diag_i);
-                encoder.encode(U1_diag_[k], z_1_rot[i].parms_id(), delta, U1_diag_i);
+                encoder.encode(U0_diag_[k], z_0_rot[i].parms_id(), corrected_scale, U0_diag_i);
+                encoder.encode(U1_diag_[k], z_1_rot[i].parms_id(), corrected_scale, U1_diag_i);
 
                 // z += U0 * z_0.
                 if (i == 0)
@@ -3386,14 +3412,11 @@ namespace seal
         }
 
         // Rescale
-        rescale(z);
+        dynamic_rescale_inplace(z, evaluator, delta_bit);
+        z.scale() = delta;
 
         // Scaling
-        tmp_vt.assign(slot_count, (delta / z.scale()) * correction_factor(z));
-        encoder.encode(tmp_vt, z.parms_id(), 1.0, tmp_pt);
-        tmp_pt.scale() = delta;
-        evaluator.multiply_plain_inplace(z, tmp_pt);
-        rescale(z);
+        dynamic_rescale_inplace(z, evaluator, delta_bit);
         z.scale() = scale;
 
         // Copy result to destination.
@@ -3406,9 +3429,40 @@ namespace seal
         const GaloisKeys &galois_keys, int delta_bit, size_t l, size_t d_0, size_t r, Ciphertext &destination1,
         Ciphertext &destination2) const
     {
-        // ����ó�� �߰�
-        // delta_bit <=60
-        // 
+        // Verify parameters.
+        if (!is_metadata_valid_for(encrypted1, context_) || !is_buffer_valid(encrypted1))
+        {
+            throw invalid_argument("encrypted1 is not valid for encryption parameters");
+        }
+        if (!is_metadata_valid_for(encrypted2, context_) || !is_buffer_valid(encrypted2))
+        {
+            throw invalid_argument("encrypted2 is not valid for encryption parameters");
+        }
+        if (!context_.using_bootstrapping())
+        {
+            throw logic_error("bootstrapping is not supported by the context");
+        }
+        if (context_.first_context_data()->parms().bootstrapping_depth() != get_bootstrap_depth(l, d_0, r))
+        {
+            throw logic_error("The context's bootstrapping_depth does not match the depth implied by (l, d_0, r).");
+        }
+        if (encrypted1.parms_id() != encrypted2.parms_id())
+        {
+            throw invalid_argument("encrypted1 and encrypted2 parameter mismatch");
+        }
+        if (encrypted1.scale() != encrypted2.scale())
+        {
+            throw invalid_argument("encrypted1 and encrypted2 scale mismatch");
+        }
+        if (delta_bit < 0 || delta_bit > 120)
+        {
+            throw invalid_argument("delta_bit must be in the range [0, 120].");
+        }
+        if (d_0 < 1)
+        {
+            throw invalid_argument("d_0 must be at least 1.");
+        }
+        
         // Extract encryption parameters.
         auto &first_parms = context_.first_context_data()->parms();
         const auto &coeff_modulus = first_parms.coeff_modulus();
@@ -3416,41 +3470,7 @@ namespace seal
         uint64_t slot_count = n >> 1;
         double_t delta = pow(2, delta_bit);
 
-        // Dynamic correction factor
-        auto correction_factor = [&](Ciphertext &cipher) {
-            double_t factor = 1.0;
-
-            if (cipher.scale() != delta)
-            {
-                factor = delta / cipher.scale();
-            }
-
-            if (delta_bit > 60)
-            {
-                factor *= (static_cast<double_t>(coeff_modulus[cipher.coeff_modulus_size() - 1ULL].value()) *
-                           static_cast<double_t>(coeff_modulus[cipher.coeff_modulus_size() - 2ULL].value())) /
-                          delta;
-            }
-            else
-            {
-                factor *= static_cast<double_t>(coeff_modulus[cipher.coeff_modulus_size() - 1ULL].value()) / delta;
-            }
-
-            return factor;
-        };
-
-        // Dynamic rescale function
-        auto rescale = [&](Ciphertext &cipher) {
-            evaluator.rescale_to_next_inplace(cipher);
-
-            if (delta_bit > 60)
-            {
-                evaluator.rescale_to_next_inplace(cipher);
-            }
-        };
-
         // Modular reduction: (Enc(ct_0), Enc(ct_1)) -> (Enc(Dec(ct_0) mod q_l), Enc(Dec(ct_1) mod q_l))
-        // Depth = ?.
         Ciphertext ct_0 = encrypted1;
         Ciphertext ct_1 = encrypted2;
 
@@ -3472,13 +3492,13 @@ namespace seal
                 uint64_t q_i_dot = coeff_modulus[last_modulus_index - i].value();
                 uint64_t q_i = coeff_modulus[i].value();
                 angle *= static_cast<double_t>(q_i_dot) / static_cast<double_t>(q_i);
-            }
-            tmp_vt.assign(slot_count, angle * correction_factor(term_1_0));
+            };
+            tmp_vt.assign(slot_count, angle * dynamic_correction_factor(term_1_0, delta, delta, delta_bit, 0));
             encoder.encode(tmp_vt, term_1_0.parms_id(), delta, tmp_pt);
             evaluator.multiply_plain_inplace(term_1_0, tmp_pt);
             evaluator.multiply_plain_inplace(term_1_1, tmp_pt);
-            rescale(term_1_0);
-            rescale(term_1_1);
+            dynamic_rescale_inplace(term_1_0, evaluator, delta_bit);
+            dynamic_rescale_inplace(term_1_1, evaluator, delta_bit);
             term_1_0.scale() = delta;
             term_1_1.scale() = delta;
 
@@ -3487,16 +3507,16 @@ namespace seal
             for (size_t i = 0; i <= l; i++)
             {
                 uint64_t last_modulus = coeff_modulus[term_1_0.coeff_modulus_size() - 1ULL - i].value();
-                term_1_0.scale() *= static_cast<double_t>(last_modulus);
-                term_1_1.scale() *= static_cast<double_t>(last_modulus);
-                evaluator.rescale_to_next_inplace(term_1_0);
-                evaluator.rescale_to_next_inplace(term_1_1);
+                term_1_0.scale() = static_cast<double_t>(last_modulus);
+                term_1_1.scale() = static_cast<double_t>(last_modulus);
+                dynamic_rescale_inplace(term_1_0, evaluator, 60);
+                dynamic_rescale_inplace(term_1_1, evaluator, 60);
             }
             term_1_0.scale() = delta;
             term_1_1.scale() = delta;
         }();
 
-        // (P_0_0, P_0_1) = ��{(1 / k!) * (term_1_0, term_1_1)^k}. Where k = {0, 1, ... , d_0}.
+        // (P_0_0, P_0_1) = Σ{(1 / k!) * (term_1_0, term_1_1)^k}. Where k = {0, 1, ... , d_0}.
         // Depth = floor(log2(r)) + 2.
         Ciphertext P_r_0;
         Ciphertext P_r_1;
@@ -3507,7 +3527,7 @@ namespace seal
             Ciphertext tmp_ct_0;
             Ciphertext tmp_ct_1;
 
-            cout << "(P_0_0, P_0_1) = ��{(1 / k!) * (term_1_0, term_1_1)^k}. Where k = {0, 1, ... , d_0}" << '\n';
+            cout << "(P_0_0, P_0_1) = Σ{(1 / k!) * (term_1_0, term_1_1)^k}. Where k = {0, 1, ... , d_0}" << '\n';
             vector<Ciphertext> terms_0(d_0 + 1);
             vector<Ciphertext> terms_1(d_0 + 1);
 
@@ -3529,8 +3549,8 @@ namespace seal
                     evaluator.square(terms_1[po2], terms_1[i]);
                     evaluator.relinearize_inplace(terms_0[i], relin_keys);
                     evaluator.relinearize_inplace(terms_1[i], relin_keys);
-                    rescale(terms_0[i]);
-                    rescale(terms_1[i]);
+                    dynamic_rescale_inplace(terms_0[i], evaluator, delta_bit);
+                    dynamic_rescale_inplace(terms_1[i], evaluator, delta_bit);
                     po2 = i;
                 }
                 else
@@ -3543,17 +3563,17 @@ namespace seal
                     evaluator.multiply(terms_1[po2], tmp_ct_1, terms_1[i]);
                     evaluator.relinearize_inplace(terms_0[i], relin_keys);
                     evaluator.relinearize_inplace(terms_1[i], relin_keys);
-                    rescale(terms_0[i]);
-                    rescale(terms_1[i]);
+                    dynamic_rescale_inplace(terms_0[i], evaluator, delta_bit);
+                    dynamic_rescale_inplace(terms_1[i], evaluator, delta_bit);
                 }
-                
+            
                 inv_fact /= static_cast<double_t>(i);
-                tmp_vt.assign(slot_count, inv_fact * correction_factor(terms_0[i]));
+                tmp_vt.assign(slot_count, inv_fact * dynamic_correction_factor(terms_0[i], delta, delta, delta_bit, 0));
                 encoder.encode(tmp_vt, terms_0[i].parms_id(), delta, tmp_pt);
                 evaluator.multiply_plain(terms_0[i], tmp_pt, tmp_ct_0);
                 evaluator.multiply_plain(terms_1[i], tmp_pt, tmp_ct_1);
-                rescale(tmp_ct_0);
-                rescale(tmp_ct_1);
+                dynamic_rescale_inplace(tmp_ct_0, evaluator, delta_bit);
+                dynamic_rescale_inplace(tmp_ct_1, evaluator, delta_bit);
                 tmp_ct_0.scale() = delta;
                 tmp_ct_1.scale() = delta;
                 
@@ -3574,8 +3594,8 @@ namespace seal
                 evaluator.square_inplace(P_r_1);
                 evaluator.relinearize_inplace(P_r_0, relin_keys);
                 evaluator.relinearize_inplace(P_r_1, relin_keys);
-                rescale(P_r_0);
-                rescale(P_r_1);
+                dynamic_rescale_inplace(P_r_0, evaluator, delta_bit);
+                dynamic_rescale_inplace(P_r_1, evaluator, delta_bit);
             }
         }();
 
@@ -3594,16 +3614,16 @@ namespace seal
             evaluator.complex_conjugate(P_r_1, galois_keys, tmp_ct_1);
             evaluator.sub(tmp_ct_0, P_r_0, ct_0);
             evaluator.sub(tmp_ct_1, P_r_1, ct_1);
-
+            
             // (ct_0, ct_1) = (q_0 * i) / (4 * PI) * (ct_0, ct_1).
             cout << "(ct_0, ct_1) = (q_0 * i) / (4 * PI) * (ct_0, ct_1)" << '\n';
             complex<double_t> rate(0.0, static_cast<double_t>(coeff_modulus[0].value()) / (4.0 * PI_));
-            tmp_vt.assign(slot_count, rate * correction_factor(ct_0));
+            tmp_vt.assign(slot_count, rate * dynamic_correction_factor(ct_0, delta, delta, delta_bit, 0));
             encoder.encode(tmp_vt, ct_0.parms_id(), delta, tmp_pt);
             evaluator.multiply_plain_inplace(ct_0, tmp_pt);
             evaluator.multiply_plain_inplace(ct_1, tmp_pt);
-            rescale(ct_0);
-            rescale(ct_1);
+            dynamic_rescale_inplace(ct_0, evaluator, delta_bit);
+            dynamic_rescale_inplace(ct_1, evaluator, delta_bit);
             ct_0.scale() = delta;
             ct_1.scale() = delta;
 
@@ -3612,12 +3632,12 @@ namespace seal
             for (size_t i = 1; i <= l; i++)
             {
                 double_t q_i = static_cast<double_t>(coeff_modulus[i].value());
-                tmp_vt.assign(slot_count, q_i * correction_factor(ct_0));
+                tmp_vt.assign(slot_count, q_i * dynamic_correction_factor(ct_0, delta, delta, delta_bit, 0));
                 encoder.encode(tmp_vt, ct_0.parms_id(), delta, tmp_pt);
                 evaluator.multiply_plain_inplace(ct_0, tmp_pt);
                 evaluator.multiply_plain_inplace(ct_1, tmp_pt);
-                rescale(ct_0);
-                rescale(ct_1);
+                dynamic_rescale_inplace(ct_0, evaluator, delta_bit);
+                dynamic_rescale_inplace(ct_1, evaluator, delta_bit);
                 ct_0.scale() = delta;
                 ct_1.scale() = delta;
             }
@@ -3628,50 +3648,90 @@ namespace seal
         destination2 = ct_1;
     }
     
-    void CKKSBootstrapper::bootstrapping(
-        const Ciphertext &encrypted, const CKKSEncoder &encoder, const Encryptor &encryptor, const Evaluator &evaluator,
-        const RelinKeys &relin_keys, const GaloisKeys &galois_keys, int scale_bit, int delta_bit, std::size_t l,
-        std::size_t d_0, std::size_t r, Ciphertext &destination) const
+    double_t CKKSBootstrapper::dynamic_correction_factor(
+        const Ciphertext &encrypted, double_t curr_scale, double_t target_scale, int rescale_bit,
+        size_t nth_rescale) const
     {
-        if (encrypted.coeff_modulus_size() < l + 1)
+        // Verify parameters.
+        if (!is_metadata_valid_for(encrypted, context_) || !is_buffer_valid(encrypted))
         {
-            throw invalid_argument("");
+            throw invalid_argument("encrypted is not valid for encryption parameters");
         }
-        if (scale_bit <0 || scale_bit > 60)
+        if (!context_.using_bootstrapping())
         {
-            throw invalid_argument("");
+            throw logic_error("bootstrapping is not supported by the context");
         }
-        if (delta_bit < 0 || delta_bit > 120)
+        if (rescale_bit < 0 || rescale_bit > 120)
         {
-            throw invalid_argument("");
-        }
-        if (d_0 < 1)
-        {
-            throw invalid_argument("");
+            throw invalid_argument("rescale_bit must be in the range [0, 120].");
         }
 
-        Ciphertext encrypted_copy = encrypted;
-        Ciphertext ct_0;
-        Ciphertext ct_1;
+        // Extract encryption parameters.
+        const auto &coeff_modulus = context_.get_context_data(encrypted.parms_id())->parms().coeff_modulus();
+        double_t factor = 1.0;
 
-        // Modulus down to q_l.
-        while (encrypted_copy.coeff_modulus_size() > l + 1)
+        // Calculate correction factor
+        if (nth_rescale == 0 && encrypted.scale() != curr_scale)
         {
-            evaluator.mod_reduce_to_next_inplace(encrypted_copy);
+            factor = curr_scale / encrypted.scale();
         }
 
-        // Modulus up to Q_0.
-        evaluator.mod_raise_to_first_inplace(encrypted_copy);
+        if (rescale_bit > 60)
+        {
+            if (encrypted.coeff_modulus_size() < 2ULL * nth_rescale)
+            {
+                throw invalid_argument("Insufficient modulus levels for double-step rescaling.");
+            }
 
-        // CTS.
-        coeff_to_slot(encrypted_copy, encoder, evaluator, scale_bit, delta_bit, galois_keys, ct_0, ct_1);
+            size_t end_index = encrypted.coeff_modulus_size() - (2ULL * nth_rescale);
 
-        // Mod q_l.
-        approximate_mod_q_l(
-            ct_0, ct_1, encoder, encryptor, evaluator, relin_keys, galois_keys, delta_bit, l, d_0, r, ct_0, ct_1);
+            factor *= (static_cast<double_t>(coeff_modulus[end_index - 1ULL].value()) *
+                       static_cast<double_t>(coeff_modulus[end_index - 2ULL].value())) /
+                      target_scale;
+        }
+        else
+        {
+            if (encrypted.coeff_modulus_size() < nth_rescale)
+            {
+                throw invalid_argument("Insufficient modulus levels for single-step rescaling.");
+            }
 
-        // STC.
-        slot_to_coeff(ct_0, ct_1, encoder, evaluator, scale_bit, delta_bit, galois_keys, destination);
+            size_t end_index = encrypted.coeff_modulus_size() - nth_rescale;
+
+            factor *= static_cast<double_t>(coeff_modulus[end_index - 1ULL].value()) / target_scale;
+        }
+
+        return factor;
+    }
+    
+    void CKKSBootstrapper::dynamic_rescale_inplace(
+        Ciphertext &encrypted, const Evaluator &evaluator, int rescale_bit) const
+    {
+        // Verify parameters.
+        if (!is_metadata_valid_for(encrypted, context_) || !is_buffer_valid(encrypted))
+        {
+            throw invalid_argument("encrypted is not valid for encryption parameters");
+        }
+        if (!is_metadata_valid_for(encrypted, context_) || !is_buffer_valid(encrypted))
+        {
+            throw invalid_argument("encrypted is not valid for encryption parameters");
+        }
+        if (!context_.using_bootstrapping())
+        {
+            throw logic_error("bootstrapping is not supported by the context");
+        }
+        if (rescale_bit < 0 || rescale_bit > 120)
+        {
+            throw invalid_argument("rescale_bit must be in the range [0, 120].");
+        }
+
+        // Rescale.
+        evaluator.rescale_to_next_inplace(encrypted);
+
+        if (rescale_bit > 60)
+        {
+            evaluator.rescale_to_next_inplace(encrypted);
+        }
     }
 
 } // namespace seal
