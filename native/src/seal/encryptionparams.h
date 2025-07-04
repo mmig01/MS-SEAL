@@ -145,7 +145,7 @@ namespace seal
         */
         EncryptionParameters &operator=(EncryptionParameters &&assign) = default;
 
-        // Modified by Dice15
+        // Added by Dice15. (for CKKS bootstrapping.)
         inline void set_bootstrapping_depth(std::size_t bootstrapping_depth)
         {
             // Check that a valid bootstrapping depth is given
@@ -507,32 +507,23 @@ namespace seal
             return false;
         }
 
-        // Modified by Dice15
+        // Added by Dice15. (for CKKS bootstrapping.)
+        // Currently, only the CKKS scheme supports bootstrapping.
         SEAL_NODISCARD bool is_valid_bootstrapping_depth(std::uint8_t scheme, size_t bootstrapping_depth) const noexcept
         {
-            // CKKS 스킴만 부트스트래핑을 지원함.
             switch (scheme)
             {
             case static_cast<std::uint8_t>(scheme_type::none):
             {
-                if (bootstrapping_depth != 0)
-                {
-                    return false;
-                };
-                return true;
+                return false;
             }
             case static_cast<std::uint8_t>(scheme_type::bfv):
             {
-                if (bootstrapping_depth != 0)
-                {
-                    return false;
-                };
-                return true;
+                return false;
             }
             case static_cast<std::uint8_t>(scheme_type::ckks):
             {
-                // TODO: 부트스트래핑 알고리즘이 완성되면 설정 해야함.
-                if (bootstrapping_depth != 0 && bootstrapping_depth < 0)
+                if (bootstrapping_depth != 0 && bootstrapping_depth < 7)
                 {
                     return false;
                 }
@@ -540,11 +531,7 @@ namespace seal
             }
             case static_cast<std::uint8_t>(scheme_type::bgv):
             {
-                if (bootstrapping_depth != 0)
-                {
-                    return false;
-                }
-                return true;
+                return false;
             }
             }
             return false;

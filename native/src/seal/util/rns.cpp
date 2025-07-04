@@ -8,8 +8,6 @@
 #include "seal/util/uintarithmod.h"
 #include "seal/util/uintarithsmallmod.h"
 #include <algorithm>
-//
-#include <iostream>
 
 using namespace std;
 
@@ -597,7 +595,7 @@ namespace seal
             t_ = t;
             coeff_count_ = poly_modulus_degree;
 
-            // Modified by Dice15
+            // Added by Dice15. (for CKKS bootstrapping.)
             // Allocate memory for the bases Q, q, B, Bsk, Bsk U m_tilde, t_gamma
             size_t base_Q_size = Q.size();
             size_t base_q_size = q.size();
@@ -639,7 +637,7 @@ namespace seal
             // Set m_tilde_ to a non-prime value
             m_tilde_ = uint64_t(1) << 32;
 
-            // Modified by Dice15
+            // Added by Dice15. (for CKKS bootstrapping.)
             // Populate the base arrays
             base_Q_ = allocate<RNSBase>(pool_, Q, pool_);
             base_q_ = allocate<RNSBase>(pool_, q, pool_);
@@ -672,7 +670,7 @@ namespace seal
                 base_q_to_t_conv_ = allocate<BaseConverter>(pool_, *base_q_, RNSBase({ t_ }, pool_), pool_);
             }
 
-            // Modified by Dice15
+            // Added by Dice15. (for CKKS bootstrapping.)
             // Set up BaseConverter for q --> Q
             base_q_to_Q_conv_ = allocate<BaseConverter>(pool_, *base_q_, *base_Q_, pool_);
 
@@ -911,7 +909,7 @@ namespace seal
             });
         }
 
-        // Modified by Dice15
+        // Added by Dice15. (for CKKS bootstrapping.)
         void RNSTool::fastbconv_Q(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const
         {
 #ifdef SEAL_DEBUG

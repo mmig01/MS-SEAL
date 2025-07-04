@@ -13,15 +13,12 @@
 #include "seal/util/uintcore.h"
 #include <cmath>
 #include <complex>
-#include <iostream>
 #include <limits>
 #include <type_traits>
 #include <vector>
 #ifdef SEAL_USE_MSGSL
 #include "gsl/span"
 #endif
-//
-#include <iostream>
 
 namespace seal
 {
@@ -122,20 +119,10 @@ namespace seal
         CKKSEncoder(const SEALContext &context);
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-
         Encodes a vector of double-precision floating-point real or complex numbers
         into a plaintext polynomial. Append zeros if vector size is less than N/2.
         Dynamic memory allocations in the process are allocated from the memory
         pool pointed to by the given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
 
         @tparam T Vector value type (double or std::complex<double>)
         @param[in] values The vector of double-precision floating-point numbers
@@ -160,28 +147,19 @@ namespace seal
                             std::is_same<std::remove_cv_t<T>, std::complex<double>>::value>>
         inline void encode(
             const std::vector<T> &values, parms_id_type parms_id, double scale, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
-            encode_internal(values.data(), values.size(), parms_id, scale, destination, mul_mode, std::move(pool));
+            encode_internal(values.data(), values.size(), parms_id, scale, destination, std::move(pool));
         }
 
+        // Modified by Dice15. (for CKKS bootstrapping.)
+        // Uses entry_parms as default for encoding.
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-
         Encodes a vector of double-precision floating-point real or complex numbers
         into a plaintext polynomial. Append zeros if vector size is less than N/2.
         The encryption parameters used are the top level parameters for the given
         context. Dynamic memory allocations in the process are allocated from the
         memory pool pointed to by the given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
 
         @tparam T Vector value type (double or std::complex<double>)
         @param[in] values The vector of double-precision floating-point numbers
@@ -202,28 +180,16 @@ namespace seal
                             std::is_same<std::remove_cv_t<T>, std::complex<double>>::value>>
         inline void encode(
             const std::vector<T> &values, double scale, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
-            // Modified by Dice15
-            encode(values, context_.entry_parms_id(), scale, destination, mul_mode, std::move(pool));
+            encode(values, context_.entry_parms_id(), scale, destination, std::move(pool));
         }
 #ifdef SEAL_USE_MSGSL
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-
         Encodes a vector of double-precision floating-point real or complex numbers
         into a plaintext polynomial. Append zeros if vector size is less than N/2.
         Dynamic memory allocations in the process are allocated from the memory
         pool pointed to by the given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
 
         @tparam T Array value type (double or std::complex<double>)
         @param[in] values The array of double-precision floating-point numbers
@@ -248,29 +214,18 @@ namespace seal
                             std::is_same<std::remove_cv_t<T>, std::complex<double>>::value>>
         inline void encode(
             gsl::span<const T> values, parms_id_type parms_id, double scale, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
             encode_internal(
-                values.data(), static_cast<std::size_t>(values.size()), parms_id, scale, destination, mul_mode, std::move(pool));
+                values.data(), static_cast<std::size_t>(values.size()), parms_id, scale, destination, std::move(pool));
         }
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-        
         Encodes a vector of double-precision floating-point real or complex numbers
         into a plaintext polynomial. Append zeros if vector size is less than N/2.
         The encryption parameters used are the top level parameters for the given
         context. Dynamic memory allocations in the process are allocated from the
         memory pool pointed to by the given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
 
         @tparam T Array value type (double or std::complex<double>)
         @param[in] values The array of double-precision floating-point numbers
@@ -291,27 +246,16 @@ namespace seal
                             std::is_same<std::remove_cv_t<T>, std::complex<double>>::value>>
         inline void encode(
             gsl::span<const T> values, double scale, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
-            encode(values, context_.first_parms_id(), scale, destination, mul_mode, std::move(pool));
+            encode(values, context_.entry_parms_id(), scale, destination, std::move(pool));
         }
 #endif
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-        
         Encodes a double-precision floating-point real number into a plaintext
         polynomial. The number repeats for N/2 times to fill all slots. Dynamic
         memory allocations in the process are allocated from the memory pool
         pointed to by the given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
 
         @param[in] value The double-precision floating-point number to encode
         @param[in] parms_id parms_id determining the encryption parameters to be
@@ -329,28 +273,17 @@ namespace seal
         */
         inline void encode(
             double value, parms_id_type parms_id, double scale, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
-            encode_internal(value, parms_id, scale, destination, mul_mode, std::move(pool));
+            encode_internal(value, parms_id, scale, destination, std::move(pool));
         }
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-        
         Encodes a double-precision floating-point real number into a plaintext
         polynomial. The number repeats for N/2 times to fill all slots. The
         encryption parameters used are the top level parameters for the given
         context. Dynamic memory allocations in the process are allocated from
         the memory pool pointed to by the given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
 
         @param[in] value The double-precision floating-point number to encode
         @param[in] scale Scaling parameter defining encoding precision
@@ -363,26 +296,15 @@ namespace seal
         @throws std::invalid_argument if pool is uninitialized
         */
         inline void encode(
-            double value, double scale, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise, MemoryPoolHandle pool = MemoryManager::GetPool()) const
+            double value, double scale, Plaintext &destination, MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
-            encode(value, context_.first_parms_id(), scale, destination, mul_mode, std::move(pool));
+            encode(value, context_.entry_parms_id(), scale, destination, std::move(pool));
         }
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-        
         Encodes a double-precision complex number into a plaintext polynomial.
         Append zeros to fill all slots. Dynamic memory allocations in the process
         are allocated from the memory pool pointed to by the given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
 
         @param[in] value The double-precision complex number to encode
         @param[in] parms_id parms_id determining the encryption parameters to be
@@ -400,28 +322,17 @@ namespace seal
         */
         inline void encode(
             std::complex<double> value, parms_id_type parms_id, double scale, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
-            encode_internal(value, parms_id, scale, destination, mul_mode, std::move(pool));
+            encode_internal(value, parms_id, scale, destination, std::move(pool));
         }
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-        
         Encodes a double-precision complex number into a plaintext polynomial.
         Append zeros to fill all slots. The encryption parameters used are the
         top level parameters for the given context. Dynamic memory allocations
         in the process are allocated from the memory pool pointed to by the
         given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
 
         @param[in] value The double-precision complex number to encode
         @param[in] scale Scaling parameter defining encoding precision
@@ -435,26 +346,14 @@ namespace seal
         */
         inline void encode(
             std::complex<double> value, double scale, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
-            encode(value, context_.first_parms_id(), scale, destination, mul_mode, std::move(pool));
+            encode(value, context_.entry_parms_id(), scale, destination, std::move(pool));
         }
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-        
         Encodes an integer number into a plaintext polynomial without any scaling.
         The number repeats for N/2 times to fill all slots.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
-
         @param[in] value The integer number to encode
         @param[in] parms_id parms_id determining the encryption parameters to be
         used by the result plaintext
@@ -463,53 +362,29 @@ namespace seal
         @throws std::invalid_argument if parms_id is not valid for the encryption
         parameters
         */
-        inline void encode(
-            std::int64_t value, parms_id_type parms_id, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise) const
+        inline void encode(std::int64_t value, parms_id_type parms_id, Plaintext &destination) const
         {
-            encode_internal(value, parms_id, destination, mul_mode);
+            encode_internal(value, parms_id, destination);
         }
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-        
         Encodes an integer number into a plaintext polynomial without any scaling.
         The number repeats for N/2 times to fill all slots. The encryption
         parameters used are the top level parameters for the given context.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
 
         @param[in] value The integer number to encode
         @param[out] destination The plaintext polynomial to overwrite with the
         result
         */
-        inline void encode(
-            std::int64_t value, Plaintext &destination, mul_mode_type mul_mode = mul_mode_type::element_wise) const
+        inline void encode(std::int64_t value, Plaintext &destination) const
         {
-            encode(value, context_.first_parms_id(), destination, mul_mode);
+            encode(value, context_.entry_parms_id(), destination);
         }
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-        
         Decodes a plaintext polynomial into double-precision floating-point
         real or complex numbers. Dynamic memory allocations in the process are
         allocated from the memory pool pointed to by the given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode to interpret the decoded data. This must match
-          the mode used during encoding:
-          - `mul_mode_type::element_wise`: Decode for element-wise multiplication.
-          - `mul_mode_type::convolution`: Decode for convolution-based multiplication.
 
         @tparam T Vector value type (double or std::complex<double>)
         @param[in] plain The plaintext to decode
@@ -525,28 +400,16 @@ namespace seal
                             std::is_same<std::remove_cv_t<T>, double>::value ||
                             std::is_same<std::remove_cv_t<T>, std::complex<double>>::value>>
         inline void decode(
-            const Plaintext &plain, std::vector<T> &destination, mul_mode_type mul_mode = mul_mode_type::element_wise,
-            MemoryPoolHandle pool = MemoryManager::GetPool()) const
+            const Plaintext &plain, std::vector<T> &destination, MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
             destination.resize(slots_);
-            decode_internal(plain, destination.data(), mul_mode, std::move(pool));
+            decode_internal(plain, destination.data(), std::move(pool));
         }
 #ifdef SEAL_USE_MSGSL
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-29
-        Modified By: Dice15
-       
         Decodes a plaintext polynomial into double-precision floating-point
         real or complex numbers. Dynamic memory allocations in the process are
         allocated from the memory pool pointed to by the given MemoryPoolHandle.
-
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode to interpret the decoded data. This must match
-          the mode used during encoding:
-          - `mul_mode_type::element_wise`: Decode for element-wise multiplication.
-          - `mul_mode_type::convolution`: Decode for convolution-based multiplication.
 
         @tparam T Array value type (double or std::complex<double>)
         @param[in] plain The plaintext to decode
@@ -562,14 +425,13 @@ namespace seal
                             std::is_same<std::remove_cv_t<T>, double>::value ||
                             std::is_same<std::remove_cv_t<T>, std::complex<double>>::value>>
         inline void decode(
-            const Plaintext &plain, gsl::span<T> destination, mul_mode_type mul_mode = mul_mode_type::element_wise,
-            MemoryPoolHandle pool = MemoryManager::GetPool()) const
+            const Plaintext &plain, gsl::span<T> destination, MemoryPoolHandle pool = MemoryManager::GetPool()) const
         {
             if (destination.size() != slots_)
             {
                 throw std::invalid_argument("destination has invalid size");
             }
-            decode_internal(plain, destination.data(), mul_mode, std::move(pool));
+            decode_internal(plain, destination.data(), std::move(pool));
         }
 #endif
         /**
@@ -580,14 +442,6 @@ namespace seal
             return slots_;
         }
 
-        /**
-        Returns the number of complex numbers encoded.
-        */
-        SEAL_NODISCARD inline std::shared_ptr<util::ComplexRoots> complex_roots() const noexcept
-        {
-            return complex_roots_;
-        }
-        
     private:
         template <
             typename T, typename = std::enable_if_t<
@@ -595,7 +449,7 @@ namespace seal
                             std::is_same<std::remove_cv_t<T>, std::complex<double>>::value>>
         void encode_internal(
             const T *values, std::size_t values_size, parms_id_type parms_id, double scale, Plaintext &destination,
-            mul_mode_type mul_mode, MemoryPoolHandle pool) const
+            MemoryPoolHandle pool) const
         {
             // Verify parameters.
             auto context_data_ptr = context_.get_context_data(parms_id);
@@ -636,6 +490,33 @@ namespace seal
 
             auto ntt_tables = context_data.small_ntt_tables();
 
+            // values_size is guaranteed to be no bigger than slots_
+            std::size_t n = util::mul_safe(slots_, std::size_t(2));
+
+            auto conj_values = util::allocate<std::complex<double>>(n, pool, 0);
+            for (std::size_t i = 0; i < values_size; i++)
+            {
+                conj_values[matrix_reps_index_map_[i]] = values[i];
+                // TODO: if values are real, the following values should be set to zero, and multiply results by 2.
+                conj_values[matrix_reps_index_map_[i + slots_]] = std::conj(values[i]);
+            }
+            double fix = scale / static_cast<double>(n);
+            fft_handler_.transform_from_rev(conj_values.get(), util::get_power_of_two(n), inv_root_powers_.get(), &fix);
+
+            double max_coeff = 0;
+            for (std::size_t i = 0; i < n; i++)
+            {
+                max_coeff = std::max<>(max_coeff, std::fabs(conj_values[i].real()));
+            }
+            // Verify that the values are not too large to fit in coeff_modulus
+            // Note that we have an extra + 1 for the sign bit
+            // Don't compute logarithmis of numbers less than 1
+            int max_coeff_bit_count = static_cast<int>(std::ceil(std::log2(std::max<>(max_coeff, 1.0)))) + 1;
+            if (max_coeff_bit_count >= context_data.total_coeff_modulus_bit_count())
+            {
+                throw std::invalid_argument("encoded values are too large");
+            }
+
             double two_pow_64 = std::pow(2.0, 64);
 
             // Resize destination to appropriate size
@@ -644,259 +525,96 @@ namespace seal
             destination.parms_id() = parms_id_zero;
             destination.resize(util::mul_safe(coeff_count, coeff_modulus_size));
 
-            /*
-            [MODIFIED]
-            Modification Date: 2024-11-29
-            Modified By: Dice15
-
-            Added support for `mul_mode_type` to handle different multiplication modes during encoding:
-            - `element_wise`: Performs FFT transformations to map values into the polynomial coefficients,
-              ensuring compatibility with standard element-wise operations.
-            - `convolution`: Directly scales the input values by `coeff_count` and maps them to polynomial coefficients
-              for convolution-based operations without FFT transformations.
-            */
-            if (mul_mode == mul_mode_type::element_wise)
+            // Use faster decomposition methods when possible
+            if (max_coeff_bit_count <= 64)
             {
-                // values_size is guaranteed to be no bigger than slots_
-                std::size_t n = util::mul_safe(slots_, std::size_t(2));
-
-                auto conj_values = util::allocate<std::complex<double>>(n, pool, 0);
-                for (std::size_t i = 0; i < values_size; i++)
-                {
-                    conj_values[matrix_reps_index_map_[i]] = values[i];
-                    // TODO: if values are real, the following values should be set to zero, and multiply results by 2.
-                    conj_values[matrix_reps_index_map_[i + slots_]] = std::conj(values[i]);
-                }
-
-                double fix = scale / static_cast<double>(n);
-                fft_handler_.transform_from_rev(
-                    conj_values.get(), util::get_power_of_two(n), inv_root_powers_.get(), &fix);
-
-                double max_coeff = 0;
                 for (std::size_t i = 0; i < n; i++)
                 {
-                    max_coeff = std::max<>(max_coeff, std::fabs(conj_values[i].real()));
-                }
-                // Verify that the values are not too large to fit in coeff_modulus
-                // Note that we have an extra + 1 for the sign bit
-                // Don't compute logarithmis of numbers less than 1
-                int max_coeff_bit_count = static_cast<int>(std::ceil(std::log2(std::max<>(max_coeff, 1.0)))) + 1;
-                if (max_coeff_bit_count >= context_data.total_coeff_modulus_bit_count())
-                {
-                    throw std::invalid_argument("encoded values are too large");
-                }
+                    double coeffd = std::round(conj_values[i].real());
+                    bool is_negative = std::signbit(coeffd);
 
-                // Use faster decomposition methods when possible
-                if (max_coeff_bit_count <= 64)
-                {
-                    for (std::size_t i = 0; i < n; i++)
+                    std::uint64_t coeffu = static_cast<std::uint64_t>(std::fabs(coeffd));
+
+                    if (is_negative)
                     {
-                        double coeffd = std::round(conj_values[i].real());
-                        bool is_negative = std::signbit(coeffd);
-                        std::uint64_t coeffu = static_cast<std::uint64_t>(std::fabs(coeffd));
-
-                        if (is_negative)
+                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
                         {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::negate_uint_mod(
-                                    util::barrett_reduce_64(coeffu, coeff_modulus[j]), coeff_modulus[j]);
-                            }
-                        }
-                        else
-                        {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::barrett_reduce_64(coeffu, coeff_modulus[j]);
-                            }
+                            destination[i + (j * coeff_count)] = util::negate_uint_mod(
+                                util::barrett_reduce_64(coeffu, coeff_modulus[j]), coeff_modulus[j]);
                         }
                     }
-                }
-                else if (max_coeff_bit_count <= 128)
-                {
-                    for (std::size_t i = 0; i < n; i++)
+                    else
                     {
-                        double coeffd = std::round(conj_values[i].real());
-                        bool is_negative = std::signbit(coeffd);
-                        coeffd = std::fabs(coeffd);
-
-                        std::uint64_t coeffu[2]{ static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64)),
-                                                 static_cast<std::uint64_t>(coeffd / two_pow_64) };
-
-                        if (is_negative)
+                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
                         {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::negate_uint_mod(
-                                    util::barrett_reduce_128(coeffu, coeff_modulus[j]), coeff_modulus[j]);
-                            }
-                        }
-                        else
-                        {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::barrett_reduce_128(coeffu, coeff_modulus[j]);
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    // Slow case
-                    auto coeffu(util::allocate_uint(coeff_modulus_size, pool));
-                    for (std::size_t i = 0; i < n; i++)
-                    {
-                        double coeffd = std::round(conj_values[i].real());
-                        bool is_negative = std::signbit(coeffd);
-                        coeffd = std::fabs(coeffd);
-
-                        // We are at this point guaranteed to fit in the allocated space
-                        util::set_zero_uint(coeff_modulus_size, coeffu.get());
-                        auto coeffu_ptr = coeffu.get();
-                        while (coeffd >= 1)
-                        {
-                            *coeffu_ptr++ = static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64));
-                            coeffd /= two_pow_64;
-                        }
-
-                        // Next decompose this coefficient
-                        context_data.rns_tool()->base_q()->decompose(coeffu.get(), pool);
-
-                        // Finally replace the sign if necessary
-                        if (is_negative)
-                        {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::negate_uint_mod(coeffu[j], coeff_modulus[j]);
-                            }
-                        }
-                        else
-                        {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = coeffu[j];
-                            }
+                            destination[i + (j * coeff_count)] = util::barrett_reduce_64(coeffu, coeff_modulus[j]);
                         }
                     }
                 }
             }
-            else if (mul_mode == mul_mode_type::convolution)
+            else if (max_coeff_bit_count <= 128)
             {
-                // values_size is guaranteed to be no bigger than slots_
-                std::size_t n = util::mul_safe(slots_, std::size_t(2));
-
-                auto complex_values = util::allocate<std::complex<double>>(n, pool, 0);
-                double max_coeff = 0;
-                for (std::size_t i = 0; i < values_size; i++)
+                for (std::size_t i = 0; i < n; i++)
                 {
-                    complex_values[i] = values[i] * scale;
-                    complex_values[i + slots_] = complex_values[i].imag();
+                    double coeffd = std::round(conj_values[i].real());
+                    bool is_negative = std::signbit(coeffd);
+                    coeffd = std::fabs(coeffd);
 
-                    max_coeff = std::max<>(
-                        max_coeff,
-                        std::max<>(std::fabs(complex_values[i].real()), std::fabs(complex_values[i + slots_].real())));
-                }
+                    std::uint64_t coeffu[2]{ static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64)),
+                                             static_cast<std::uint64_t>(coeffd / two_pow_64) };
 
-                // Verify that the values are not too large to fit in coeff_modulus
-                // Note that we have an extra + 1 for the sign bit
-                // Don't compute logarithmis of numbers less than 1
-                int max_coeff_bit_count = static_cast<int>(std::ceil(std::log2(std::max<>(max_coeff, 1.0)))) + 1;
-                if (max_coeff_bit_count >= context_data.total_coeff_modulus_bit_count())
-                {
-                    throw std::invalid_argument("encoded values are too large");
-                }
-
-                // Use faster decomposition methods when possible
-                if (max_coeff_bit_count <= 64)
-                {
-                    for (std::size_t i = 0; i < n; i++)
+                    if (is_negative)
                     {
-                        double coeffd = std::round(complex_values[i].real());
-                        bool is_negative = std::signbit(coeffd);
-                  
-                        std::uint64_t coeffu = static_cast<std::uint64_t>(std::fabs(coeffd));
-
-                        if (is_negative)
+                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
                         {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::negate_uint_mod(
-                                    util::barrett_reduce_64(coeffu, coeff_modulus[j]), coeff_modulus[j]);
-                            }
+                            destination[i + (j * coeff_count)] = util::negate_uint_mod(
+                                util::barrett_reduce_128(coeffu, coeff_modulus[j]), coeff_modulus[j]);
                         }
-                        else
+                    }
+                    else
+                    {
+                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
                         {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::barrett_reduce_64(coeffu, coeff_modulus[j]);
-                            }
+                            destination[i + (j * coeff_count)] = util::barrett_reduce_128(coeffu, coeff_modulus[j]);
                         }
                     }
                 }
-                else if (max_coeff_bit_count <= 128)
+            }
+            else
+            {
+                // Slow case
+                auto coeffu(util::allocate_uint(coeff_modulus_size, pool));
+                for (std::size_t i = 0; i < n; i++)
                 {
-                    for (std::size_t i = 0; i < n; i++)
+                    double coeffd = std::round(conj_values[i].real());
+                    bool is_negative = std::signbit(coeffd);
+                    coeffd = std::fabs(coeffd);
+
+                    // We are at this point guaranteed to fit in the allocated space
+                    util::set_zero_uint(coeff_modulus_size, coeffu.get());
+                    auto coeffu_ptr = coeffu.get();
+                    while (coeffd >= 1)
                     {
-                        double coeffd = std::round(complex_values[i].real());
-                        bool is_negative = std::signbit(coeffd);
-                        coeffd = std::fabs(coeffd);
+                        *coeffu_ptr++ = static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64));
+                        coeffd /= two_pow_64;
+                    }
 
-                        std::uint64_t coeffu[2]{ static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64)),
-                                                 static_cast<std::uint64_t>(coeffd / two_pow_64) };
+                    // Next decompose this coefficient
+                    context_data.rns_tool()->base_q()->decompose(coeffu.get(), pool);
 
-                        if (is_negative)
+                    // Finally replace the sign if necessary
+                    if (is_negative)
+                    {
+                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
                         {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::negate_uint_mod(
-                                    util::barrett_reduce_128(coeffu, coeff_modulus[j]), coeff_modulus[j]);
-                            }
-                        }
-                        else
-                        {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::barrett_reduce_128(coeffu, coeff_modulus[j]);
-                            }
+                            destination[i + (j * coeff_count)] = util::negate_uint_mod(coeffu[j], coeff_modulus[j]);
                         }
                     }
-                }
-                else
-                {
-                    // Slow case
-                    auto coeffu(util::allocate_uint(coeff_modulus_size, pool));
-                    for (std::size_t i = 0; i < n; i++)
+                    else
                     {
-                        double coeffd = std::round(complex_values[i].real());
-                        bool is_negative = std::signbit(coeffd);
-                        coeffd = std::fabs(coeffd);
-
-                        // We are at this point guaranteed to fit in the allocated space
-                        util::set_zero_uint(coeff_modulus_size, coeffu.get());
-                        auto coeffu_ptr = coeffu.get();
-                        while (coeffd >= 1)
+                        for (std::size_t j = 0; j < coeff_modulus_size; j++)
                         {
-                            *coeffu_ptr++ = static_cast<std::uint64_t>(std::fmod(coeffd, two_pow_64));
-                            coeffd /= two_pow_64;
-                        }
-
-                        // Next decompose this coefficient
-                        context_data.rns_tool()->base_q()->decompose(coeffu.get(), pool);
-
-                        // Finally replace the sign if necessary
-                        if (is_negative)
-                        {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = util::negate_uint_mod(coeffu[j], coeff_modulus[j]);
-                            }
-                        }
-                        else
-                        {
-                            for (std::size_t j = 0; j < coeff_modulus_size; j++)
-                            {
-                                destination[i + (j * coeff_count)] = coeffu[j];
-                            }
+                            destination[i + (j * coeff_count)] = coeffu[j];
                         }
                     }
                 }
@@ -916,8 +634,7 @@ namespace seal
             typename T, typename = std::enable_if_t<
                             std::is_same<std::remove_cv_t<T>, double>::value ||
                             std::is_same<std::remove_cv_t<T>, std::complex<double>>::value>>
-        void decode_internal(
-            const Plaintext &plain, T *destination, mul_mode_type mul_mode, MemoryPoolHandle pool) const
+        void decode_internal(const Plaintext &plain, T *destination, MemoryPoolHandle pool) const
         {
             // Verify parameters.
             if (!is_valid_for(plain, context_))
@@ -974,28 +691,6 @@ namespace seal
                 util::inverse_ntt_negacyclic_harvey(plain_copy.get() + (i * coeff_count), ntt_tables[i]);
             }
 
-            [&]() {
-                auto context_data_ptr = context_.get_context_data(plain.parms_id());
-                auto &parms = context_data_ptr->parms();
-                auto &coeff_modulus = parms.coeff_modulus();
-                size_t coeff_modulus_size = coeff_modulus.size();
-
-                const Plaintext::pt_coeff_type *ptr = plain.data();
-                for (size_t j = 0; j < coeff_modulus_size; j++)
-                {
-                    uint64_t modulus = coeff_modulus[j].value();
-                    size_t poly_modulus_degree = parms.poly_modulus_degree();
-                    for (; poly_modulus_degree--; ptr++)
-                    {
-                        if (poly_modulus_degree < 3)
-                        {
-                            std::cout << *ptr << ' ';
-                        }
-                    }
-                    std::cout << "mod " << modulus << '\n';
-                }
-            };
-
             // CRT-compose the polynomial
             context_data.rns_tool()->base_q()->compose_array(plain_copy.get(), coeff_count, pool);
 
@@ -1039,59 +734,26 @@ namespace seal
                 // res[i] = res_accum * inv_scale;
             }
 
-            /*
-            [MODIFIED]
-            Modification Date: 2024-11-29
-            Modified By: Dice15
+            fft_handler_.transform_to_rev(res.get(), logn, root_powers_.get());
 
-            Added support for `mul_mode_type` in decoding to handle element-wise and convolution-based decoding:
-            - `element_wise`: Applies FFT to reverse the transformation and maps the results back to their original
-            indices using `matrix_reps_index_map_`.
-            - `convolution`: Combines the real parts of the complex coefficients in a way that reflects
-            convolution-based decoding. Specifically, it processes both the primary and secondary slots to form the
-            output.
-
-            This ensures compatibility with both multiplication modes during encoding and maintains decoding
-            consistency.
-            */
-            if (mul_mode == mul_mode_type::element_wise)
+            for (std::size_t i = 0; i < slots_; i++)
             {
-                /* for (std::size_t i = 0; i < slots_; i++)
-                {
-                    destination[i] = from_complex<T>(res[i + slots_]);
-                }
-
-                return;*/
-                fft_handler_.transform_to_rev(res.get(), logn, root_powers_.get());
-
-                for (std::size_t i = 0; i < slots_; i++)
-                {
-                    destination[i] = from_complex<T>(res[static_cast<std::size_t>(matrix_reps_index_map_[i])]);
-                }
-            }
-            else if (mul_mode == mul_mode_type::convolution)
-            {
-                for (std::size_t i = 0; i < slots_; i++)
-                {
-                    destination[i] = from_complex<T>(res[i]);
-                }
+                destination[i] = from_complex<T>(res[static_cast<std::size_t>(matrix_reps_index_map_[i])]);
             }
         }
 
         void encode_internal(
-            double value, parms_id_type parms_id, double scale, Plaintext &destination, mul_mode_type mul_mode,
-            MemoryPoolHandle pool) const;
+            double value, parms_id_type parms_id, double scale, Plaintext &destination, MemoryPoolHandle pool) const;
 
         inline void encode_internal(
             std::complex<double> value, parms_id_type parms_id, double scale, Plaintext &destination,
-            mul_mode_type mul_mode, MemoryPoolHandle pool) const
+            MemoryPoolHandle pool) const
         {
             auto input = util::allocate<std::complex<double>>(slots_, pool_, value);
-            encode_internal(input.get(), slots_, parms_id, scale, destination, mul_mode, std::move(pool));
+            encode_internal(input.get(), slots_, parms_id, scale, destination, std::move(pool));
         }
 
-        void encode_internal(
-            std::int64_t value, parms_id_type parms_id, Plaintext &destination, mul_mode_type mul_mode) const;
+        void encode_internal(std::int64_t value, parms_id_type parms_id, Plaintext &destination) const;
 
         MemoryPoolHandle pool_ = MemoryManager::GetPool();
 

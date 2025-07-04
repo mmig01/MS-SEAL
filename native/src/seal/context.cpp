@@ -208,7 +208,7 @@ namespace seal
         // Assume parameters satisfy desired security level
         context_data.qualifiers_.sec_level = sec_level_;
 
-        // Modified by Dice15
+        // Modified by Dice15. (for CKKS bootstrapping.)
         // Check if the parameters are secure according to HomomorphicEncryption.org security standard
         if (context_data.total_coeff_modulus_bit_count_ - bootstrapping_coeff_modulus_bit_count_ >
             CoeffModulus::MaxBitCount(poly_modulus_degree, sec_level_))
@@ -391,8 +391,10 @@ namespace seal
             return context_data;
         }
 
-        // Modified by Dice15
+        // Modified by Dice15. (for CKKS bootstrapping.)
         // Create RNSTool
+        // When enable_mod_raise is true, create an RNSTool that supports extension to a different modulus base.
+        // Otherwise, create a lightweight RNSTool without modulus extension support.
         // RNSTool's constructor may fail due to:
         //   (1) auxiliary base being too large
         //   (2) cannot find inverse of punctured products in auxiliary base
@@ -487,12 +489,12 @@ namespace seal
         // Validate parameters and add new ContextData to the map
         // Note that this happens even if parameters are not valid
 
-        // Modified by Dice15
-        // Set bootstrapping flag
+        // Added by Dice15. (for CKKS bootstrapping.)
+        // Set bootstrapping depth.
         using_bootstrapping_ = (parms.bootstrapping_depth() > 0);
-
-        // Modified by Dice15
-        // Compute the bit count of moduli used for bootstrapping
+        
+        // Added by Dice15. (for CKKS bootstrapping.)
+        // Compute the bit count of moduli used for bootstrapping.
         bootstrapping_coeff_modulus_bit_count_ = 0;
         if (using_bootstrapping_)
         {   
@@ -535,17 +537,17 @@ namespace seal
         // Set last_parms_id_ to point to first_parms_id_
         last_parms_id_ = first_parms_id_;
 
-        // Modified by Dice15
+        // Added by Dice15. (for CKKS bootstrapping.)
         // Set entry_parms_id_ to point to first_parms_id_
         entry_parms_id_ = first_parms_id_;
 
         // Check if keyswitching is available
         using_keyswitching_ = (first_parms_id_ != key_parms_id_);
 
-        // Modified by Dice15
+        // Modified by Dice15. (for CKKS bootstrapping.)
         // If modulus switching chain is to be created, compute the remaining parameter sets as long as they are
         // valid to use (i.e., parameters_set() == true).
-        uint64_t depth_cnt = parms.bootstrapping_depth();
+        size_t depth_cnt = parms.bootstrapping_depth();
         if (expand_mod_chain && context_data_map_.at(first_parms_id_)->qualifiers_.parameters_set())
         {
             auto prev_parms_id = first_parms_id_;

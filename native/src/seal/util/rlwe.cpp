@@ -38,7 +38,7 @@ namespace seal
             });
         }
         
-        // Modified by Dice15
+        // Added by Dice15. (for CKKS bootstrapping.)
         void sample_poly_ternary_sparse(
             shared_ptr<UniformRandomGenerator> prng, const EncryptionParameters &parms, uint64_t *destination)
         {

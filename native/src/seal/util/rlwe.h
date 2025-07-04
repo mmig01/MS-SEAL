@@ -26,7 +26,7 @@ namespace seal
             std::shared_ptr<UniformRandomGenerator> prng, const EncryptionParameters &parms,
             std::uint64_t *destination);
         
-        // Modified by Dice15
+        // Added by Dice15. (for CKKS bootstrapping.)
         /**
         Generate a sparse balanced ternary polynomial and store in RNS representation.
 

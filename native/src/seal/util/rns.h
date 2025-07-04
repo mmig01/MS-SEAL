@@ -208,9 +208,9 @@ namespace seal
             void divide_and_round_q_last_ntt_inplace(
                 RNSIter input, ConstNTTTablesIter rns_ntt_tables, MemoryPoolHandle pool) const;
 
-            // Modified by Dice15
+            // Added by Dice15. (for CKKS bootstrapping.)
             /**
-            Fast base conversion from q to Q
+            Fast base conversion from q_l to Q
             */
             void fastbconv_Q(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const;
 
@@ -333,7 +333,7 @@ namespace seal
 
             std::size_t coeff_count_ = 0;
 
-            // Modified by Dice15
+            // Added by Dice15. (for CKKS bootstrapping.)
             Pointer<RNSBase> base_Q_;
 
             Pointer<RNSBase> base_q_;
@@ -346,8 +346,8 @@ namespace seal
 
             Pointer<RNSBase> base_t_gamma_;
 
-            // Modified by Dice15
-            // Base converter: q --> Q
+            // Added by Dice15. (for CKKS bootstrapping.)
+            // Base converter: q_l --> Q
             Pointer<BaseConverter> base_q_to_Q_conv_;
 
             // Base converter: q --> B_sk

@@ -13,8 +13,6 @@
 #include "seal/secretkey.h"
 #include "seal/valcheck.h"
 #include "seal/util/iterator.h"
-#include "seal/ckks.h"
-#include "seal/encryptor.h"
 #include <map>
 #include <stdexcept>
 #include <vector>
@@ -489,6 +487,18 @@ namespace seal
             mod_switch_to_inplace(destination, parms_id);
         }
 
+        // Added by Dice15. (for CKKS bootstrapping.)
+        void mod_raise_to_first_inplace(Ciphertext &encrypted, MemoryPoolHandle pool = MemoryManager::GetPool()) const;
+
+        // Added by Dice15. (for CKKS bootstrapping.)
+        inline void mod_raise_to_first(
+            const Ciphertext &encrypted, Ciphertext &destination,
+            MemoryPoolHandle pool = MemoryManager::GetPool()) const
+        {
+            destination = encrypted;
+            mod_raise_to_first_inplace(destination, std::move(pool));
+        }
+
         /**
         Given a ciphertext encrypted modulo q_1...q_k, this function switches the modulus down to q_1...q_{k-1}, scales
         the message down accordingly, and stores the result in the destination parameter. Dynamic memory allocations in
@@ -657,18 +667,6 @@ namespace seal
         {
             destination = encrypted;
             mod_reduce_to_inplace(destination, parms_id, std::move(pool));
-        }
-
-        // Modified by Dice15
-        void mod_raise_to_first_inplace(Ciphertext &encrypted, MemoryPoolHandle pool = MemoryManager::GetPool()) const;
-
-        // Modified by Dice15
-        inline void mod_raise_to_first(
-            const Ciphertext& encrypted, Ciphertext& destination,
-            MemoryPoolHandle pool = MemoryManager::GetPool()) const
-        {
-            destination = encrypted;
-            mod_raise_to_first_inplace(destination, std::move(pool));
         }
 
         /**
@@ -1377,64 +1375,6 @@ namespace seal
 
         void multiply_plain_ntt(Ciphertext &encrypted_ntt, const Plaintext &plain_ntt) const;
 
-
-
         SEALContext context_;
-    };
-
-    // Modified by Dice15
-    class CKKSBootstrapper
-    {
-    public:
-        CKKSBootstrapper(const SEALContext &context);
-
-        static size_t get_bootstrap_depth(size_t l, size_t d_0, size_t r);
-
-        static std::vector<int> create_coeff_modulus(
-            std::vector<int> coeff_modulus, int scale_bit, int delta_bit, std::size_t l, std::size_t d_0,
-            std::size_t r);
-
-        void bootstrapping(
-            const Ciphertext &encrypted, const CKKSEncoder &encoder, const Encryptor &encryptor,
-            const Evaluator &evaluator, const RelinKeys &relin_keys, const GaloisKeys &galois_keys, int scale_bit,
-            int delta_bit, std::size_t l, std::size_t d_0, std::size_t r, Ciphertext &destination) const;
-
-    private:
-        void coeff_to_slot(
-            const Ciphertext &encrypted, const CKKSEncoder &encoder, const Evaluator &evaluator, int scale_bit,
-            int delta_bit, const GaloisKeys &galois_keys, Ciphertext &destination1, Ciphertext &destination2) const;
-
-        void slot_to_coeff(
-            const Ciphertext &encrypted1, const Ciphertext &encrypted2, const CKKSEncoder &encoder,
-            const Evaluator &evaluator, int scale_bit, int delta_bit, const GaloisKeys &galois_keys,
-            Ciphertext &destination) const;
-
-        void approximate_mod_q_l(
-            const Ciphertext &encrypted1, const Ciphertext &encrypted2, const CKKSEncoder &encoder,
-            const Encryptor &encryptor, const Evaluator &evaluator, const RelinKeys &relin_keys,
-            const GaloisKeys &galois_keys, int delta_bit, std::size_t l, std::size_t d_0, std::size_t r,
-            Ciphertext &destination1, Ciphertext &destination2) const;
-
-        double_t dynamic_correction_factor(
-            const Ciphertext &cipher, double_t curr_scale, double_t target_scale, int rescale_bit,
-            size_t nth_rescale) const;
-
-        void dynamic_rescale_inplace(Ciphertext &cipher, const Evaluator &evaluator, int rescale_bit) const;
-
-        SEALContext context_;
-
-        std::vector<std::vector<std::complex<double_t>>> U0_diag_;
-        
-        std::vector<std::vector<std::complex<double_t>>> U1_diag_;
-
-        std::vector<std::vector<std::complex<double_t>>> U0_t_diag_;
-
-        std::vector<std::vector<std::complex<double_t>>> U1_t_diag_;
-
-        std::vector<std::vector<std::complex<double_t>>> U0_t_c_diag_;
-
-        std::vector<std::vector<std::complex<double_t>>> U1_t_c_diag_;
-
-        double_t PI_ = 3.1415926535897932384626433832795028842;
     };
 } // namespace seal

@@ -11,8 +11,6 @@
 #include "seal/valcheck.h"
 #include "seal/util/common.h"
 #include "seal/util/defines.h"
-//
-#include <iostream>
 
 using namespace std;
 using namespace seal::util;
