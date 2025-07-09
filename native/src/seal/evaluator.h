@@ -488,9 +488,43 @@ namespace seal
         }
 
         // Added by Dice15. (for CKKS bootstrapping.)
+        /**
+        @brief Raises the modulus of a ciphertext to the highest (initial) modulus level in the modulus switching chain, in-place.
+
+        This function modifies the input ciphertext by extending its modulus from its current level
+        (e.g., q_{i}...q_{k}) to the initial level (e.g., q_{1}...q_{k}) used at the start of encryption.
+        The added modulus primes (e.g., q_1 to q_{i-1}) are filled in appropriately to maintain
+        mathematical consistency with the original ciphertext. This operation is commonly used
+        in CKKS bootstrapping to restore ciphertexts to a higher modulus level before slot transformations.
+
+        @param[in,out] encrypted The ciphertext to be raised to the initial modulus level (modified in-place)
+        @param[in] pool The memory pool handle used for dynamic memory allocations (optional)
+
+        @throws std::invalid_argument if the ciphertext is not valid for the encryption parameters
+        @throws std::invalid_argument if the scheme does not support modulus raising
+        @throws std::invalid_argument if the ciphertext is already at the highest modulus level
+        @throws std::invalid_argument if pool is uninitialized
+        @throws std::logic_error if the ciphertext is transparent
+        */
         void mod_raise_to_first_inplace(Ciphertext &encrypted, MemoryPoolHandle pool = MemoryManager::GetPool()) const;
 
         // Added by Dice15. (for CKKS bootstrapping.)
+        /**
+        @brief Raises the modulus of a ciphertext to the highest (initial) modulus level in the modulus switching chain.
+
+        This function is used in CKKS bootstrapping to lift a ciphertext from its current modulus level
+        (e.g., q_{i}...q_{k}) up to the highest level (e.g., q_{1}...q_{k}) used at the start of encryption.
+        This is done by copying the input ciphertext and then applying an in-place modulus raising operation
+        to match the parameters of the initial level.
+
+        @param[in] encrypted The input ciphertext to be raised to the initial modulus level
+        @param[out] destination The ciphertext to store the result with the raised modulus
+        @param[in] pool The memory pool handle used for dynamic memory allocations (optional)
+
+        @throws std::invalid_argument if the ciphertext is not valid for the encryption parameters
+        @throws std::invalid_argument if the scheme does not support modulus raising
+        @throws std::invalid_argument if pool is uninitialized
+        */
         inline void mod_raise_to_first(
             const Ciphertext &encrypted, Ciphertext &destination,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const

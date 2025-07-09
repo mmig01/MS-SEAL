@@ -102,17 +102,17 @@ namespace seal
             throw invalid_argument("d_0 must be at least 1.");
         }
             
-        /*                    Step                                   Depth Consumption
-            ─────────────────────────────────────────
-            1) Coeff-to-Slot (CTS)                                         2
-            2) Eval mod q_0
-                ┌─ Multiply constant (2πi / 2^r)                      1
-                ├─ Divide by q_l                                           l + 1
+        /*                 Step                       Depth Consumption
+            ──────────────────────────────────────────────────────────────────
+            1) Coeff-to-Slot (CTS)                             2
+            2) Eval mod q_l
+                ┌─ Multiply constant (2πi / 2^r)               1
+                ├─ Divide by q_l                             l + 1
                 ├─ Taylor expansion (degree d₀)          ⌊log₂(d₀)⌋ + 2
-                ├─ Exponentiation (·)^{2^r}                            r
-                └─ Multiply constant q_l / (2π)                     l + 1
-            3) Slot-to-Coeff (STC)                                         2
-            ─────────────────────────────────────────
+                ├─ Exponentiation (·)^{2^r}                    r
+                └─ Multiply constant q_l / (2π)              l + 1
+            3) Slot-to-Coeff (STC)                             2
+            ───────────────────────────────────────────────────────────────────
         */
 
         size_t taylor_cnt = static_cast<size_t>(log2(d_0)) + 2;
@@ -631,7 +631,7 @@ namespace seal
         // Depth = (l + 1) + 1.
         if (print_progress)
         {
-            print_progress_percent("Eval mod q_0", 1, 4);
+            print_progress_percent("Eval approximate mod q_l", 1, 4);
         }
         Ciphertext term_1_0 = ct_0;
         Ciphertext term_1_1 = ct_1;
@@ -677,7 +677,7 @@ namespace seal
         // Depth = floor(log2(d_0)) + 2.
         if (print_progress)
         {
-            print_progress_percent("Eval mod q_0", 2, 4);
+            print_progress_percent("Eval approximate mod q_l", 2, 4);
         }
         Ciphertext P_r_0;
         Ciphertext P_r_1;
@@ -748,7 +748,7 @@ namespace seal
         // Depth = r.
         if (print_progress)
         {
-            print_progress_percent("Eval mod q_0", 3, 4);
+            print_progress_percent("Eval approximate mod q_l", 3, 4);
         }
         [&]() {
             for (size_t i = 0; i < r; i++)
@@ -766,7 +766,7 @@ namespace seal
         // Depth = l + 1.
         if (print_progress)
         {
-            print_progress_percent("Eval mod q_0", 4, 4);
+            print_progress_percent("Eval approximate mod q_l", 4, 4);
         }
         [&]() {
             // Temp var.
