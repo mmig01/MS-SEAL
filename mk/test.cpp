@@ -52,7 +52,7 @@ int main(){
     // encryptor.encrypt(pt, ct);
     // cout << "ct coef size:" << ct.coeff_modulus_size() << '\n';
 
-   
+    cout << "랄랄랄" << '\n';
 
     // for (int i = 0; i < 9; i++)
     // {
