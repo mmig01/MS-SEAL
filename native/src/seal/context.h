@@ -558,7 +558,7 @@ namespace seal
             return (data != context_data_map_.end()) ? data->second : std::shared_ptr<ContextData>{ nullptr };
         }
 
-        // Modified by Dice15
+        // Modified by Dice15.
         /**
         Returns the ContextData corresponding to the entry encryption parameters
         that are used for data.
@@ -623,7 +623,7 @@ namespace seal
             return first_parms_id_;
         }
 
-        // Modified by Dice15
+        // Modified by Dice15.
         /**
         Returns a parms_id_type corresponding to the entry encryption parameters
         that are used for data.
@@ -642,7 +642,7 @@ namespace seal
             return last_parms_id_;
         }
 
-        // Modified by Dice15
+        // Modified by Dice15.
         /**
         Returns a coeff modulus bit count for bootstrapping
         */
@@ -651,7 +651,7 @@ namespace seal
             return bootstrapping_coeff_modulus_bit_count_;
         }
 
-        // Modified by Dice15
+        // Modified by Dice15.
         /**
         Returns whether the coefficient modulus supports bootstrapping. In practice,
         support for bootstrapping is required by CKKSBootstrapper.
@@ -706,12 +706,12 @@ namespace seal
 
         parms_id_type first_parms_id_;
 
-        // Modified by Dice15
+        // Modified by Dice15.
         parms_id_type entry_parms_id_;
 
         parms_id_type last_parms_id_;
 
-        // Modified by Dice15
+        // Modified by Dice15.
         int bootstrapping_coeff_modulus_bit_count_;
         
         std::unordered_map<parms_id_type, std::shared_ptr<const ContextData>> context_data_map_{};
@@ -721,7 +721,7 @@ namespace seal
         */
         sec_level_type sec_level_;
 
-        // Modified by Dice15
+        // Modified by Dice15.
         /**
         Is bootstrapping enabled by the encryption parameters?
         */

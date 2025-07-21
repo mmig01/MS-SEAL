@@ -62,10 +62,6 @@ namespace seal
         BatchEncoder(const SEALContext &context);
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-28
-        Modified By: Dice15
-
         Creates a plaintext from a given matrix. This function "batches" a given matrix
         of integers modulo the plaintext modulus into a plaintext element, and stores
         the result in the destination parameter. The input vector must have size at most equal
@@ -77,26 +73,13 @@ namespace seal
         If the destination plaintext overlaps the input values in memory, the behavior of
         this function is undefined.
 
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
-
         @param[in] values The matrix of integers modulo plaintext modulus to batch
         @param[out] destination The plaintext polynomial to overwrite with the result
-        @param[in] mul_mode The multiplication mode for the encoding process
         @throws std::invalid_argument if values is too large
         */
-        void encode(
-            const std::vector<std::uint64_t> &values, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise) const;
+        void encode(const std::vector<std::uint64_t> &values, Plaintext &destination) const;
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-28
-        Modified By: Dice15
-
         Creates a plaintext from a given matrix. This function "batches" a given matrix
         of integers modulo the plaintext modulus into a plaintext element, and stores
         the result in the destination parameter. The input vector must have size at most equal
@@ -108,26 +91,13 @@ namespace seal
         If the destination plaintext overlaps the input values in memory, the behavior of
         this function is undefined.
 
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
-
         @param[in] values The matrix of integers modulo plaintext modulus to batch
         @param[out] destination The plaintext polynomial to overwrite with the result
-        @param[in] mul_mode The multiplication mode for the encoding process
         @throws std::invalid_argument if values is too large
         */
-        void encode(
-            const std::vector<std::int64_t> &values, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise) const;
+        void encode(const std::vector<std::int64_t> &values, Plaintext &destination) const;
 #ifdef SEAL_USE_MSGSL
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-28
-        Modified By: Dice15
-
         Creates a plaintext from a given matrix. This function "batches" a given matrix
         of integers modulo the plaintext modulus into a plaintext element, and stores
         the result in the destination parameter. The input must have size at most equal
@@ -139,26 +109,13 @@ namespace seal
         If the destination plaintext overlaps the input values in memory, the behavior of
         this function is undefined.
 
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
-
         @param[in] values The matrix of integers modulo plaintext modulus to batch
         @param[out] destination The plaintext polynomial to overwrite with the result
-        @param[in] mul_mode The multiplication mode for the encoding process
         @throws std::invalid_argument if values is too large
         */
-        void encode(
-            gsl::span<const std::uint64_t> values, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise) const;
+        void encode(gsl::span<const std::uint64_t> values, Plaintext &destination) const;
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-28
-        Modified By: Dice15
-
         Creates a plaintext from a given matrix. This function "batches" a given matrix
         of integers modulo the plaintext modulus into a plaintext element, and stores
         the result in the destination parameter. The input must have size at most equal
@@ -170,43 +127,22 @@ namespace seal
         If the destination plaintext overlaps the input values in memory, the behavior of
         this function is undefined.
 
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode used during encoding. This can be set to:
-          - `mul_mode_type::element_wise`: Element-wise multiplication.
-          - `mul_mode_type::convolution`: Convolution-based multiplication.
-
         @param[in] values The matrix of integers modulo plaintext modulus to batch
         @param[out] destination The plaintext polynomial to overwrite with the result
-        @param[in] mul_mode The multiplication mode for the encoding process
         @throws std::invalid_argument if values is too large
         */
-        void encode(
-            gsl::span<const std::int64_t> values, Plaintext &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise) const;
+        void encode(gsl::span<const std::int64_t> values, Plaintext &destination) const;
 #endif
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-28
-        Modified By: Dice15
-
         Inverse of encode. This function "unbatches" a given plaintext into a matrix
         of integers modulo the plaintext modulus, and stores the result in the destination
         parameter. The input plaintext must have degrees less than the polynomial modulus,
-        and coefficients less than the plaintext modulus, i.e., it must be a valid plaintext
+        and coefficients less than the plaintext modulus, i.e. it must be a valid plaintext
         for the encryption parameters. Dynamic memory allocations in the process are
         allocated from the memory pool pointed to by the given MemoryPoolHandle.
 
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_typee::element_wise)
-          Specifies the multiplication mode to interpret the decoded data. This must match
-          the mode used during encoding:
-          - `mul_mode_type::element_wise`: Decode for element-wise multiplication.
-          - `mul_mode_type::convolution`: Decode for convolution-based multiplication.
-
         @param[in] plain The plaintext polynomial to unbatch
         @param[out] destination The matrix to be overwritten with the values in the slots
-        @param[in] mul_mode The multiplication mode for the decoding process
         @param[in] pool The MemoryPoolHandle pointing to a valid memory pool
         @throws std::invalid_argument if plain is not valid for the encryption parameters
         @throws std::invalid_argument if plain is in NTT form
@@ -214,31 +150,18 @@ namespace seal
         */
         void decode(
             const Plaintext &plain, std::vector<std::uint64_t> &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const;
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-28
-        Modified By: Dice15
-
         Inverse of encode. This function "unbatches" a given plaintext into a matrix
         of integers modulo the plaintext modulus, and stores the result in the destination
         parameter. The input plaintext must have degrees less than the polynomial modulus,
-        and coefficients less than the plaintext modulus, i.e., it must be a valid plaintext
+        and coefficients less than the plaintext modulus, i.e. it must be a valid plaintext
         for the encryption parameters. Dynamic memory allocations in the process are
         allocated from the memory pool pointed to by the given MemoryPoolHandle.
 
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode to interpret the decoded data. This must match
-          the mode used during encoding:
-          - `mul_mode_type::element_wise`: Decode for element-wise multiplication.
-          - `mul_mode_type::convolution`: Decode for convolution-based multiplication.
-
         @param[in] plain The plaintext polynomial to unbatch
         @param[out] destination The matrix to be overwritten with the values in the slots
-        @param[in] mul_mode The multiplication mode for the decoding process
         @param[in] pool The MemoryPoolHandle pointing to a valid memory pool
         @throws std::invalid_argument if plain is not valid for the encryption parameters
         @throws std::invalid_argument if plain is in NTT form
@@ -246,7 +169,6 @@ namespace seal
         */
         void decode(
             const Plaintext &plain, std::vector<std::int64_t> &destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const;
 #ifdef SEAL_USE_MSGSL
         /**
@@ -267,31 +189,18 @@ namespace seal
         */
         void decode(
             const Plaintext &plain, gsl::span<std::uint64_t> destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const;
 
         /**
-        [MODIFIED]
-        Modification Date: 2024-11-28
-        Modified By: Dice15
-
         Inverse of encode. This function "unbatches" a given plaintext into a matrix
         of integers modulo the plaintext modulus, and stores the result in the destination
         parameter. The input plaintext must have degrees less than the polynomial modulus,
-        and coefficients less than the plaintext modulus, i.e., it must be a valid plaintext
+        and coefficients less than the plaintext modulus, i.e. it must be a valid plaintext
         for the encryption parameters. Dynamic memory allocations in the process are
         allocated from the memory pool pointed to by the given MemoryPoolHandle.
 
-        @par New Parameter
-        - @param[in] mul_mode (Default: mul_mode_type::element_wise)
-          Specifies the multiplication mode to interpret the decoded data. This must match
-          the mode used during encoding:
-          - `mul_mode_type::element_wise`: Decode for element-wise multiplication.
-          - `mul_mode_type::convolution`: Decode for convolution-based multiplication.
-
         @param[in] plain The plaintext polynomial to unbatch
         @param[out] destination The matrix to be overwritten with the values in the slots
-        @param[in] mul_mode The multiplication mode for the decoding process
         @param[in] pool The MemoryPoolHandle pointing to a valid memory pool
         @throws std::invalid_argument if plain is not valid for the encryption parameters
         @throws std::invalid_argument if plain is in NTT form
@@ -300,7 +209,6 @@ namespace seal
         */
         void decode(
             const Plaintext &plain, gsl::span<std::int64_t> destination,
-            mul_mode_type mul_mode = mul_mode_type::element_wise,
             MemoryPoolHandle pool = MemoryManager::GetPool()) const;
 #endif
         /**

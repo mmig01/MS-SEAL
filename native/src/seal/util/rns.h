@@ -208,11 +208,15 @@ namespace seal
             void divide_and_round_q_last_ntt_inplace(
                 RNSIter input, ConstNTTTablesIter rns_ntt_tables, MemoryPoolHandle pool) const;
 
-            // Added by Dice15. (for CKKS bootstrapping.)
+            // Added by Dice15.
             /**
             Fast base conversion from q_l to Q
             */
             void fastbconv_Q(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const;
+            
+            /*// Added by Dice15. (test for BFV bootstrapping.) Exact base conversion from q_l to delta and fast base conversion from delta to Q             
+            void exactbconv_delta_and_fastbconv_Q(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const;
+            */
 
             /**
             Shenoy-Kumaresan conversion from Bsk to q
@@ -333,8 +337,11 @@ namespace seal
 
             std::size_t coeff_count_ = 0;
 
-            // Added by Dice15. (for CKKS bootstrapping.)
+            // Added by Dice15.
             Pointer<RNSBase> base_Q_;
+            
+            /*// Added by Dice15. (Test for BFV bootstrapping.)
+            Pointer<RNSBase> base_delta_;*/
 
             Pointer<RNSBase> base_q_;
 
@@ -346,9 +353,16 @@ namespace seal
 
             Pointer<RNSBase> base_t_gamma_;
 
-            // Added by Dice15. (for CKKS bootstrapping.)
+            // Added by Dice15.
             // Base converter: q_l --> Q
             Pointer<BaseConverter> base_q_to_Q_conv_;
+            
+            /*// Added by Dice15. (Test for BFV bootstrapping.)
+            // Base converter: q_l --> delta
+            Pointer<BaseConverter> base_q_to_delta_conv_;*/
+            
+            // Set up BaseConverter for delta --> Q
+            Pointer<BaseConverter> base_delta_to_Q_conv_;
 
             // Base converter: q --> B_sk
             Pointer<BaseConverter> base_q_to_Bsk_conv_;
