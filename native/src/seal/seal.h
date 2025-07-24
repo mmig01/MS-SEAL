@@ -7,6 +7,7 @@
 #include "seal/bootstrapper.h"
 #include "seal/ciphertext.h"
 #include "seal/ckks.h"
+#include "seal/coeffencoder.h"
 #include "seal/context.h"
 #include "seal/decryptor.h"
 #include "seal/dynarray.h"
