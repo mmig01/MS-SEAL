@@ -145,7 +145,7 @@ namespace seal
         */
         EncryptionParameters &operator=(EncryptionParameters &&assign) = default;
 
-        // Added by Dice15. (for CKKS bootstrapping.)
+        // Added by Dice15.
         inline void set_bootstrapping_depth(std::size_t bootstrapping_depth)
         {
             // Check that a valid bootstrapping depth is given
@@ -507,7 +507,7 @@ namespace seal
             return false;
         }
 
-        // Added by Dice15. (for CKKS bootstrapping.)
+        // Added by Dice15.
         // Currently, only the CKKS scheme supports bootstrapping.
         SEAL_NODISCARD bool is_valid_bootstrapping_depth(std::uint8_t scheme, size_t bootstrapping_depth) const noexcept
         {

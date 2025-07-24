@@ -208,7 +208,7 @@ namespace seal
         // Assume parameters satisfy desired security level
         context_data.qualifiers_.sec_level = sec_level_;
 
-        // Modified by Dice15. (for CKKS bootstrapping.)
+        // Modified by Dice15.
         // Check if the parameters are secure according to HomomorphicEncryption.org security standard
         if (context_data.total_coeff_modulus_bit_count_ - bootstrapping_coeff_modulus_bit_count_ >
             CoeffModulus::MaxBitCount(poly_modulus_degree, sec_level_))
@@ -391,7 +391,7 @@ namespace seal
             return context_data;
         }
 
-        // Modified by Dice15. (for CKKS bootstrapping.)
+        // Modified by Dice15.
         // Create RNSTool
         // When enable_mod_raise is true, create an RNSTool that supports extension to a different modulus base.
         // Otherwise, create a lightweight RNSTool without modulus extension support.
@@ -489,11 +489,11 @@ namespace seal
         // Validate parameters and add new ContextData to the map
         // Note that this happens even if parameters are not valid
 
-        // Added by Dice15. (for CKKS bootstrapping.)
+        // Added by Dice15.
         // Set bootstrapping depth.
         using_bootstrapping_ = (parms.bootstrapping_depth() > 0);
         
-        // Added by Dice15. (for CKKS bootstrapping.)
+        // Added by Dice15.
         // Compute the bit count of moduli used for bootstrapping.
         bootstrapping_coeff_modulus_bit_count_ = 0;
         if (using_bootstrapping_)
@@ -537,14 +537,14 @@ namespace seal
         // Set last_parms_id_ to point to first_parms_id_
         last_parms_id_ = first_parms_id_;
 
-        // Added by Dice15. (for CKKS bootstrapping.)
+        // Added by Dice15.
         // Set entry_parms_id_ to point to first_parms_id_
         entry_parms_id_ = first_parms_id_;
 
         // Check if keyswitching is available
         using_keyswitching_ = (first_parms_id_ != key_parms_id_);
 
-        // Modified by Dice15. (for CKKS bootstrapping.)
+        // Modified by Dice15.
         // If modulus switching chain is to be created, compute the remaining parameter sets as long as they are
         // valid to use (i.e., parameters_set() == true).
         size_t depth_cnt = parms.bootstrapping_depth();

@@ -7,6 +7,7 @@ set(SEAL_SOURCE_FILES ${SEAL_SOURCE_FILES}
     ${CMAKE_CURRENT_LIST_DIR}/bootstrapper.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ciphertext.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ckks.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/coeffencoder.cpp
     ${CMAKE_CURRENT_LIST_DIR}/context.cpp
     ${CMAKE_CURRENT_LIST_DIR}/decryptor.cpp
     ${CMAKE_CURRENT_LIST_DIR}/encryptionparams.cpp
@@ -29,6 +30,7 @@ install(
 	${CMAKE_CURRENT_LIST_DIR}/bootstrapper.h
         ${CMAKE_CURRENT_LIST_DIR}/ciphertext.h
         ${CMAKE_CURRENT_LIST_DIR}/ckks.h
+        ${CMAKE_CURRENT_LIST_DIR}/coeffencoder.h
         ${CMAKE_CURRENT_LIST_DIR}/modulus.h
         ${CMAKE_CURRENT_LIST_DIR}/context.h
         ${CMAKE_CURRENT_LIST_DIR}/decryptor.h

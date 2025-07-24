@@ -1600,7 +1600,7 @@ namespace seal
 #endif
     }
     
-    // Added by Dice15. (for CKKS bootstrapping.)
+    // Added by Dice15.
     void Evaluator::mod_raise_to_first_inplace(Ciphertext &encrypted, MemoryPoolHandle pool) const
     {
         // Assuming at this point encrypted is already validated.
@@ -1657,6 +1657,35 @@ namespace seal
 
         transform_to_ntt_inplace(encrypted);
     }
+
+    /*// Added by Dice15. (Test for BFV bootstrapping.)
+    void Evaluator::mod_switch_to_delta_inplace(Ciphertext &encrypted, MemoryPoolHandle pool) const
+    {
+        // Assuming at this point encrypted is already validated.
+        auto context_data_ptr = context_.get_context_data(encrypted.parms_id());
+
+        // Extract encryption parameters.
+        auto &context_data = *context_data_ptr;
+        auto &parms = context_data.parms();
+        auto rns_tool = context_data.rns_tool();
+        size_t encrypted_size = encrypted.size();
+        size_t coeff_count = parms.poly_modulus_degree();
+        
+        // Extract target parameters
+        auto &first_context_data = *context_.first_context_data();
+        auto &first_parms = first_context_data.parms();
+        const auto &first_coeff_modulus = first_parms.coeff_modulus();
+        size_t first_coeff_modulus_size = first_coeff_modulus.size();
+
+        Ciphertext encrypted_copy(pool);
+        encrypted_copy = encrypted;
+       
+        SEAL_ITERATE(iter(encrypted_copy, encrypted), encrypted_size, [&](auto I) {
+            SEAL_ALLOCATE_GET_RNS_ITER(mod_switch, coeff_count, first_coeff_modulus_size, pool);
+            rns_tool->exactbconv_delta_and_fastbconv_Q(get<0>(I), mod_switch, pool);
+            set_poly(mod_switch, coeff_count, first_coeff_modulus_size, get<1>(I));
+        });
+    }*/
 
     void Evaluator::mod_reduce_to_inplace(Ciphertext &encrypted, parms_id_type parms_id, MemoryPoolHandle pool) const
     {

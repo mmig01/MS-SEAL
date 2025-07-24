@@ -487,7 +487,7 @@ namespace seal
             mod_switch_to_inplace(destination, parms_id);
         }
 
-        // Added by Dice15. (for CKKS bootstrapping.)
+        // Added by Dice15.
         /**
         @brief Raises the modulus of a ciphertext to the highest (initial) modulus level in the modulus switching chain, in-place.
 
@@ -508,7 +508,7 @@ namespace seal
         */
         void mod_raise_to_first_inplace(Ciphertext &encrypted, MemoryPoolHandle pool = MemoryManager::GetPool()) const;
 
-        // Added by Dice15. (for CKKS bootstrapping.)
+        // Added by Dice15.
         /**
         @brief Raises the modulus of a ciphertext to the highest (initial) modulus level in the modulus switching chain.
 
@@ -532,6 +532,18 @@ namespace seal
             destination = encrypted;
             mod_raise_to_first_inplace(destination, std::move(pool));
         }
+       
+        /*// Added by Dice15. (Test for BFV bootstrapping.)
+        void mod_switch_to_delta_inplace(Ciphertext &encrypted, MemoryPoolHandle pool = MemoryManager::GetPool()) const;
+
+        inline void mod_switch_to_delta(
+            const Ciphertext &encrypted, Ciphertext &destination,
+            MemoryPoolHandle pool = MemoryManager::GetPool()) const
+        {
+            destination = encrypted;
+            mod_switch_to_delta_inplace(destination, std::move(pool));
+        }
+        */
 
         /**
         Given a ciphertext encrypted modulo q_1...q_k, this function switches the modulus down to q_1...q_{k-1}, scales

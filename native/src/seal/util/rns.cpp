@@ -595,7 +595,12 @@ namespace seal
             t_ = t;
             coeff_count_ = poly_modulus_degree;
 
-            // Added by Dice15. (for CKKS bootstrapping.)
+            /*// Modified by Dice15. (Test for BFV bootstrapping.)
+            RNSBase delta(vector<Modulus>{ Modulus(111ULL) }, pool_);
+            size_t base_delta_size = delta.size();
+            */
+
+            // Modified by Dice15.
             // Allocate memory for the bases Q, q, B, Bsk, Bsk U m_tilde, t_gamma
             size_t base_Q_size = Q.size();
             size_t base_q_size = q.size();
@@ -637,9 +642,10 @@ namespace seal
             // Set m_tilde_ to a non-prime value
             m_tilde_ = uint64_t(1) << 32;
 
-            // Added by Dice15. (for CKKS bootstrapping.)
+            // Modified by Dice15.
             // Populate the base arrays
             base_Q_ = allocate<RNSBase>(pool_, Q, pool_);
+            // base_delta_ = allocate<RNSBase>(pool_, delta, pool_);  // Modified by Dice15. (Test for BFV bootstrapping)
             base_q_ = allocate<RNSBase>(pool_, q, pool_);
             base_B_ = allocate<RNSBase>(pool_, base_B_primes, pool_);
             base_Bsk_ = allocate<RNSBase>(pool_, base_B_->extend(m_sk_));
@@ -670,9 +676,17 @@ namespace seal
                 base_q_to_t_conv_ = allocate<BaseConverter>(pool_, *base_q_, RNSBase({ t_ }, pool_), pool_);
             }
 
-            // Added by Dice15. (for CKKS bootstrapping.)
+            // Added by Dice15.
             // Set up BaseConverter for q --> Q
             base_q_to_Q_conv_ = allocate<BaseConverter>(pool_, *base_q_, *base_Q_, pool_);
+            
+            /*// Added by Dice15. (Test for BFV bootstrapping)
+            // Set up BaseConverter for q --> delta
+            base_q_to_delta_conv_ = allocate<BaseConverter>(pool_, *base_q_, *base_delta_, pool_);
+            
+            // Added by Dice15. (Test for BFV bootstrapping)
+            // Set up BaseConverter for delta --> Q
+            base_delta_to_Q_conv_ = allocate<BaseConverter>(pool_, *base_delta_, *base_Q_, pool_);*/
 
             // Set up BaseConverter for q --> Bsk
             base_q_to_Bsk_conv_ = allocate<BaseConverter>(pool_, *base_q_, *base_Bsk_, pool_);
@@ -909,7 +923,7 @@ namespace seal
             });
         }
 
-        // Added by Dice15. (for CKKS bootstrapping.)
+        // Added by Dice15.
         void RNSTool::fastbconv_Q(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const
         {
 #ifdef SEAL_DEBUG
@@ -933,6 +947,38 @@ namespace seal
             // Convert q -> Q
             base_q_to_Q_conv_->fast_convert_array(input, destination, pool);
         }
+
+        /*// Added by Dice15. (Test for BFV bootstrapping.)
+        void RNSTool::exactbconv_delta_and_fastbconv_Q(
+            ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const
+        {
+#ifdef SEAL_DEBUG
+            if (!input)
+            {
+                throw invalid_argument("input cannot be null");
+            }
+            if (input.poly_modulus_degree() != coeff_count_)
+            {
+                throw invalid_argument("input is not valid for encryption parameters");
+            }
+            if (!rns_ntt_tables)
+            {
+                throw invalid_argument("rns_ntt_tables cannot be null");
+            }
+            if (!pool)
+            {
+                throw invalid_argument("pool is uninitialized");
+            }
+#endif
+            // Convert q -> delta
+            SEAL_ALLOCATE_GET_COEFF_ITER(coeff_delta, coeff_count_, pool);
+            base_q_to_delta_conv_->exact_convert_array(input, coeff_delta, pool);
+
+            // Convert delta -> Q
+            SEAL_ALLOCATE_GET_RNS_ITER(rns_delta, coeff_count_, 1, pool);
+            set_poly(coeff_delta, coeff_count_, 1, rns_delta);
+            base_delta_to_Q_conv_->fast_convert_array(rns_delta, destination, pool);
+        }*/
 
         void RNSTool::fastbconv_sk(ConstRNSIter input, RNSIter destination, MemoryPoolHandle pool) const
         {
