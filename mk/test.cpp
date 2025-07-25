@@ -18,17 +18,18 @@ int main(){
 
     EncryptionParameters context_param(scheme_type::bfv);
 
-    uint64_t poly_modulus_degree = 1024;
+    uint64_t poly_modulus_degree = 8192;
     context_param.set_poly_modulus_degree(poly_modulus_degree);
     context_param.set_plain_modulus(PlainModulus::Batching(poly_modulus_degree, 17));
 
-    uint64_t result;
-    util::try_minimal_primitive_root(poly_modulus_degree * 2, context_param.plain_modulus(), result);
-    cout << "minimal primitive root:" << result << '\n';
-    cout << "prime num:" << context_param.plain_modulus().value() << '\n';
-    context_param.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree, { 60, 60, 60, 60, 60, 60 }));
+    // uint64_t result;
+    // util::try_minimal_primitive_root(poly_modulus_degree * 2, context_param.plain_modulus(), result);
+    // cout << "minimal primitive root:" << result << '\n';
+    // cout << "prime num:" << context_param.plain_modulus().value() << '\n';
 
-    SEALContext context(context_param, true, sec_level_type::none);
+    context_param.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree, { 30, 30, 30, 30, 30, 30 }));
+
+    SEALContext context(context_param, true, sec_level_type::tc128);
     cout << context.first_context_data()->qualifiers().parameter_error_message() << '\n';
 
     KeyGenerator keygen(context);
@@ -43,36 +44,67 @@ int main(){
     Decryptor decryptor(context, secret_key);
     Evaluator evaluator(context);
 
-    vector<int64_t> vt = { 1, 1, 1, 1, 1 };
-    Plaintext pt;
-    Ciphertext ct;
+    vector<int64_t> q1 = { 1, 1, 1, 1, 1 };
+    vector<int64_t> q2 = { 2, 2, 2, 2, 2 };
+    vector<int64_t> q3 = { 3, 3, 3, 3, 3 };
 
-    encoder.encode(vt, pt);
+    Plaintext pt1;
+    Plaintext pt2;
+    Plaintext pt3;
+
+    Ciphertext ct1;
+    Ciphertext ct2;
+    Ciphertext ct3;
+
+    encoder.encode(q1, pt1);
+    encoder.encode(q2, pt2);
+    encoder.encode(q3, pt3);
+
     cout << "slot count: " << encoder.slot_count() << '\n';
-    // encryptor.encrypt(pt, ct);
-    // cout << "ct coef size:" << ct.coeff_modulus_size() << '\n';
-
-    cout << "랄랄랄" << '\n';
-
-    // for (int i = 0; i < 9; i++)
-    // {
-    //     evaluator.multiply_inplace(ct, ct);
-    //     evaluator.relinearize_inplace(ct, relin_key);
-    //     //evaluator.mod_switch_to_next_inplace(ct);
-    //     cout << "ct coef size:" << ct.coeff_modulus_size() << '\n';
-    // }
-
-
-    // print_cipher_rns_coeff(ct, context, evaluator);
-
-    // decryptor.decrypt(ct, pt);
-    // encoder.decode(pt, vt);
-
-    // for (size_t i = 0; i < 5; i++)
-    // {
-    //     cout << vt[i] << ' ';
-    // }
-    // cout << '\n';
     
+    encryptor.encrypt(pt1, ct1);
+    auto delta = context.first_context_data()->coeff_div_plain_modulus();
+    cout << "delta: " << delta << '\n';
+    uint64_t q_mod_t = context.first_context_data()->coeff_modulus_mod_plain_modulus();
+    cout << "q mod t: " << q_mod_t << '\n';
+
+    encryptor.encrypt(pt2, ct2);
+    encryptor.encrypt(pt3, ct3);
+
+
+    evaluator.multiply_inplace(ct1, ct1);
+    evaluator.relinearize_inplace(ct1, relin_key);
+    
+    evaluator.multiply_inplace(ct2, ct2);
+    evaluator.relinearize_inplace(ct2, relin_key);
+
+    evaluator.multiply_inplace(ct3, ct3);
+    evaluator.relinearize_inplace(ct3, relin_key);
+
+    decryptor.decrypt(ct1, pt1);
+    decryptor.decrypt(ct2, pt2);
+    decryptor.decrypt(ct3, pt3);
+
+    encoder.decode(pt1, q1);
+    encoder.decode(pt2, q2);
+    encoder.decode(pt3, q3);
+
+    for (size_t i = 0; i < 5; i++)
+    {
+        cout << q1[i] << ' ';
+    }
+    cout << '\n';
+
+    for (size_t i = 0; i < 5; i++)
+    {
+        cout << q2[i] << ' ';
+    }
+    cout << '\n';
+
+    for (size_t i = 0; i < 5; i++)
+    {
+        cout << q3[i] << ' ';
+    }
+    cout << '\n';
 
 }
